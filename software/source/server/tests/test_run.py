@@ -2,7 +2,9 @@
 import pytest
 
 
-@pytest.mark.skip(reason="pytest hanging")
+@pytest.mark.skip(
+    reason="speech to text creates processes which causes pytest to 'hang' after success"
+)
 def test_ping(client):
     response = client.get("/ping")
     assert response.status_code == 200

@@ -1,9 +1,8 @@
 # TODO: import from the profiles directory the interpreter that should be served!!
 
-from .profiles.fast import interpreter as base_interpreter
-
+# from .profiles.fast import interpreter as base_interpreter
 # from .profiles.local import interpreter as base_interpreter
-# from .profiles.default import interpreter as base_interpreter
+from .profiles.default import interpreter as base_interpreter
 
 import asyncio
 import traceback

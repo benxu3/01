@@ -27,7 +27,6 @@ def term_handler():
     yield
     signal.signal(signal.SIGTERM, orig)
 
-
     yield
     # Send SIGTERM signal to the current process and its children
     os.kill(os.getpid(), signal.SIGTERM)
