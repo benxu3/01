@@ -157,18 +157,21 @@ const Main: React.FC<MainProps> = ({ route }) => {
   useEffect(() => {
     let websocket: WebSocket;
     try {
-      // console.log("Connecting to WebSocket at " + scannedData);
+      console.log("Connecting to WebSocket at " + scannedData);
       setWsUrl(scannedData);
       websocket = new WebSocket(scannedData);
       websocket.binaryType = "blob";
 
       websocket.onopen = () => {
         setConnectionStatus(`Connected`);
+        console.log("conencted to ws!!!!!!!!!!!");
       };
 
       websocket.onmessage = async (e) => {
         try {
           const message = JSON.parse(e.data);
+          console.log("receive message!!!!!! ", message);
+
           if (message.content && message.type == "message" && message.role == "assistant"){
             setAccumulatedMessage((prevMessage) => prevMessage + message.content);
             scrollViewRef.current?.scrollToEnd({ animated: true });

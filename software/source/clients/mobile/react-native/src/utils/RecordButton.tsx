@@ -54,17 +54,15 @@ const RecordButton: React.FC<RecordButtonProps> = ({
     }
   }, []);
 
-  const startRecording = useCallback(async () => {
+  async function startRecording() {
     if (recording) {
       console.log("A recording is already in progress.");
       return;
     }
 
     try {
-      if (
-        permissionResponse !== null &&
-        permissionResponse.status !== `granted`
-      ) {
+      if (permissionResponse !== null && permissionResponse.status !== `granted`) {
+        console.log('Requesting permission...');
         await requestPermission();
       }
 
@@ -73,42 +71,69 @@ const RecordButton: React.FC<RecordButtonProps> = ({
         playsInSilentModeIOS: true,
       });
 
-      const newRecording = new Audio.Recording();
-      await newRecording.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      await newRecording.startAsync();
-
-      setRecording(newRecording);
+      console.log('Starting recording...');
+      const { recording } = await Audio.Recording.createAsync( Audio.RecordingOptionsPresets.HIGH_QUALITY );
+      setRecording(recording);
+      console.log('Recording started');
     } catch (err) {
       console.error("Failed to start recording", err);
     }
-  }, []);
+  };
 
-  const stopRecording = useCallback(async () => {
+  async function stopRecording() {
     if (recording) {
+      console.log('Stopping recording...');
+      setRecording(null);
+
       await recording.stopAndUnloadAsync();
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
+
       const uri = recording.getURI();
-      setRecording(null);
+      console.log('Recording stopped and stored at: ', uri);
 
       if (ws && uri) {
         const response = await fetch(uri);
-        const blob = await response.blob();
+        console.log('Fetch uri is: ', response);
 
-        const reader = new FileReader();
-        reader.readAsArrayBuffer(blob);
-        reader.onloadend = () => {
-          const audioBytes = reader.result;
-          if (audioBytes) {
-            ws.send(audioBytes);
-          }
-        };
+        const blob = await response.blob();
+        console.log('Blob is: ', blob);
+
+        const audioBytes = await blob.bytes();
+        console.log('Bytes: ', audioBytes);
+
+        if (audioBytes) {
+          ws.send(audioBytes);
+          console.log("sent recording to ws!!!!", audioBytes);
+        }
+        /**
+        try {
+          const reader = new FileReader();
+          await reader.readAsArrayBuffer(blob);
+
+
+          reader.onloadend = () => {
+            const audioBytes = reader.result;
+            console.log('Audiobytes are: ', reader.result);
+
+            if (audioBytes) {
+              ws.send(audioBytes);
+              console.log("sent recording to ws!!!!", audioBytes);
+            }
+          };
+
+        } catch(e) {
+          console.log("Exception!!!! ", e);
+        }
+         */
+
+
+
+
       }
     }
-  }, [recording]);
+  };
 
   const toggleRecording = (shouldPress: boolean) => {
     Animated.timing(backgroundColorAnim, {
