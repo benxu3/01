@@ -138,6 +138,8 @@ const Main: React.FC<MainProps> = ({ route }) => {
    */
   useEffect(() => {
     const backAction = () => {
+
+      //@ts-ignore
       navigation.navigate("Home"); // Always navigate back to Home
       return true; // Prevent default action
     };

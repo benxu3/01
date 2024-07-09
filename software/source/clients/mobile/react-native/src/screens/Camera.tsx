@@ -30,6 +30,7 @@ export default function CameraScreen() {
     setScanned(true);
     console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
 
+    //@ts-ignore
     navigation.navigate("Main", { scannedData: data })
   };
 

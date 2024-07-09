@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { TouchableOpacity, StyleSheet } from "react-native";
 import { Audio } from "expo-av";
 import { Animated } from "react-native";
@@ -47,6 +47,8 @@ const RecordButton: React.FC<RecordButtonProps> = ({
   setIsPressed,
 }: RecordButtonProps) => {
   const [permissionResponse, requestPermission] = Audio.usePermissions();
+  const [lastSentSize, setLastSentSize] = useState(0);
+  const recordingRef = useRef<Audio.Recording | null>(null);
 
   useEffect(() => {
     if (permissionResponse?.status !== "granted") {
@@ -54,8 +56,46 @@ const RecordButton: React.FC<RecordButtonProps> = ({
     }
   }, []);
 
+  const onRecordingStatusUpdate = useCallback((status: Audio.RecordingStatus) => {
+    if (status.isRecording && ws && ws.readyState === WebSocket.OPEN) {
+      // Send the audio data as it's being recorded
+      sendAudioData();
+    }
+  }, [ws, recording]);
+
+  const sendAudioData = useCallback(async () => {
+    if (!recordingRef.current) {
+      console.log('RECORDING NULL');
+      return;
+    }
+
+    try {
+      const uri = recordingRef.current.getURI();
+      console.log('recording uri: ', uri);
+      if (!uri) return;
+
+      const response = await fetch(uri);
+      console.log('response: ', response)
+
+      const blob = await response.blob();
+      console.log('blob: ', blob);
+
+      // Get only the new data since the last update
+      const newData = blob.slice(lastSentSize, blob.size);
+      console.log('data chunk being sent: ', newData);
+
+      const buffer = await newData.arrayBuffer();
+      console.log('buffer: ', buffer);
+      ws?.send(buffer);
+
+      setLastSentSize(blob.size);
+    } catch (error) {
+      console.error("Error sending audio data:", error);
+    }
+  }, [ws, lastSentSize]);
+
   async function startRecording() {
-    if (recording) {
+    if (recordingRef.current) {
       console.log("A recording is already in progress.");
       return;
     }
@@ -71,9 +111,19 @@ const RecordButton: React.FC<RecordButtonProps> = ({
         playsInSilentModeIOS: true,
       });
 
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ role: 'user', type: 'audio', start: true }));
+      }
+
       console.log('Starting recording...');
-      const { recording } = await Audio.Recording.createAsync( Audio.RecordingOptionsPresets.HIGH_QUALITY );
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        onRecordingStatusUpdate
+      );
+
+      recordingRef.current = recording;
       setRecording(recording);
+
       console.log('Recording started');
     } catch (err) {
       console.error("Failed to start recording", err);
@@ -81,56 +131,30 @@ const RecordButton: React.FC<RecordButtonProps> = ({
   };
 
   async function stopRecording() {
-    if (recording) {
+    if (recordingRef.current) {
       console.log('Stopping recording...');
-      setRecording(null);
 
-      await recording.stopAndUnloadAsync();
+      // Stop the recording
+      await recordingRef.current.stopAndUnloadAsync();
+
+      // Reset the audio mode
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
       });
 
-      const uri = recording.getURI();
+      const uri = recordingRef.current.getURI();
       console.log('Recording stopped and stored at: ', uri);
 
-      if (ws && uri) {
-        const response = await fetch(uri);
-        console.log('Fetch uri is: ', response);
+      // Reset the recording state
+      recordingRef.current = null;
+      setRecording(null);
 
-        const blob = await response.blob();
-        console.log('Blob is: ', blob);
+      // Reset the lastSentSize
+      setLastSentSize(0);
 
-        const audioBytes = await blob.bytes();
-        console.log('Bytes: ', audioBytes);
-
-        if (audioBytes) {
-          ws.send(audioBytes);
-          console.log("sent recording to ws!!!!", audioBytes);
-        }
-        /**
-        try {
-          const reader = new FileReader();
-          await reader.readAsArrayBuffer(blob);
-
-
-          reader.onloadend = () => {
-            const audioBytes = reader.result;
-            console.log('Audiobytes are: ', reader.result);
-
-            if (audioBytes) {
-              ws.send(audioBytes);
-              console.log("sent recording to ws!!!!", audioBytes);
-            }
-          };
-
-        } catch(e) {
-          console.log("Exception!!!! ", e);
-        }
-         */
-
-
-
-
+      // You might want to send a message to the server indicating that the recording has ended
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ role: 'user', type: 'audio', end: true }));
       }
     }
   };
