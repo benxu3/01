@@ -6,9 +6,17 @@ import CameraScreen from "./src/screens/Camera";
 import Main from "./src/screens/Main";
 import { StatusBar } from "expo-status-bar";
 
+export interface MainProps {
+  route: {
+    params: {
+      scannedData: string;
+    };
+  };
+}
+
 const Stack = createNativeStackNavigator();
 
-function App() {
+export default function App() {
   return (
     <>
       <StatusBar style="light" />
@@ -21,11 +29,9 @@ function App() {
         >
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Camera" component={CameraScreen} />
-          <Stack.Screen name="Main" component={Main} />
+          <Stack.Screen name="Main" component={Main as React.ComponentType<any>} initialParams={{ scannedData: '' }} />
         </Stack.Navigator>
       </NavigationContainer>
     </>
   );
 }
-
-export default App;

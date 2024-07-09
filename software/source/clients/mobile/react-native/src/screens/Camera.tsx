@@ -1,24 +1,21 @@
 import React, { useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { Camera } from "expo-camera";
+import { Camera, CameraView, useCameraPermissions } from "expo-camera";
 import { useNavigation } from "@react-navigation/native";
-import { BarCodeScanner } from "expo-barcode-scanner";
 // import useSoundEffect from "../lib/useSoundEffect";
 
 export default function CameraScreen() {
-  const [permission, requestPermission] = Camera.useCameraPermissions();
-  // const playYay = useSoundEffect(require("../../assets/yay.wav"));
-
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const navigation = useNavigation();
 
   if (!permission) {
-    // Component is waiting for permission
+    // Camera permissions still loading.
     return <View />;
   }
 
   if (!permission.granted) {
-    // No permission granted, request permission
+    // Camera permissions not granted yet.
     return (
       <View style={styles.container}>
         <Text>No access to camera</Text>
@@ -29,36 +26,23 @@ export default function CameraScreen() {
     );
   }
 
-  // function toggleCameraFacing() {
-  //   setFacing((current) => (current === "back" ? "front" : "back"));
-  // }
-
-  const handleBarCodeScanned = async ({
-    type,
-    data,
-  }: {
-    type: string;
-    data: string;
-  }) => {
-    // await playYay();
+  const handleBarCodeScanned = async ({ type, data }: { type: string, data: string }) => {
     setScanned(true);
-    console.log(
-      `Bar code with type ${type} and data ${data} has been scanned!`
-    );
-    // alert(`Scanned URL: ${data}`);
+    console.log(`Bar code with type ${type} and data ${data} has been scanned!`);
 
-    navigation.navigate("Main", { scannedData: data });
+    navigation.navigate("Main", { scannedData: data })
   };
+
   return (
     <View style={styles.container}>
-      <Camera
+      <CameraView
         style={styles.camera}
         facing={"back"}
-        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barCodeScannerSettings={{
-          barCodeTypes: [BarCodeScanner.Constants.BarCodeType.qr],
+        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+        barcodeScannerSettings={{
+          barcodeTypes: ['aztec', 'ean13', 'ean8', 'qr', 'pdf417', 'upc_e', 'datamatrix', 'code39', 'code93', 'itf14', 'codabar', 'code128', 'upc_a'],
         }}
-      >
+      />
         <View style={styles.buttonContainer}>
           {/* <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
             <Text style={styles.text}>Flip Camera</Text>
@@ -74,7 +58,6 @@ export default function CameraScreen() {
             </TouchableOpacity>
           )}
         </View>
-      </Camera>
     </View>
   );
 }

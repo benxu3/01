@@ -14,14 +14,8 @@ import { Animated } from "react-native";
 import useSoundEffect from "../utils/useSoundEffect";
 import RecordButton from "../utils/RecordButton";
 import { useNavigation } from "@react-navigation/core";
+import { MainProps } from "../../App"
 
-interface MainProps {
-  route: {
-    params: {
-      scannedData: string;
-    };
-  };
-}
 
 const Main: React.FC<MainProps> = ({ route }) => {
   const { scannedData } = route.params;
