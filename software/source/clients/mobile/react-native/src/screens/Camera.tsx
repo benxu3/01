@@ -40,7 +40,7 @@ export default function CameraScreen() {
         facing={"back"}
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
         barcodeScannerSettings={{
-          barcodeTypes: ['aztec', 'ean13', 'ean8', 'qr', 'pdf417', 'upc_e', 'datamatrix', 'code39', 'code93', 'itf14', 'codabar', 'code128', 'upc_a'],
+          barcodeTypes: ['qr'],
         }}
       />
         <View style={styles.buttonContainer}>
