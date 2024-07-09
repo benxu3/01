@@ -59,12 +59,15 @@ async def websocket_endpoint(websocket: WebSocket):
                     break
 
                 data = await websocket.receive()
+                print("received data: ", data)
 
                 if isinstance(data, bytes):
                     await interpreter.input(data)
+                    print("inserting into input queue")
                 elif "bytes" in data:
                     await interpreter.input(data["bytes"])
                     # print("RECEIVED INPUT", data)
+                    print("inserting into input queue")
                 elif "text" in data:
                     # print("RECEIVED INPUT", data)
                     await interpreter.input(data["text"])

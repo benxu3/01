@@ -74,6 +74,7 @@ class AsyncInterpreter:
         if isinstance(chunk, bytes):
             # It's probably a chunk of audio
             self.stt.feed_audio(chunk)
+            print("feedint audio chunk to stt")
             self.audio_chunks.append(chunk)
             # print("INTERPRETER FEEDING AUDIO")
 

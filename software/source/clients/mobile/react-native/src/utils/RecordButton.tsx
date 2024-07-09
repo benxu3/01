@@ -3,6 +3,7 @@ import { TouchableOpacity, StyleSheet } from "react-native";
 import { Audio } from "expo-av";
 import { Animated } from "react-native";
 import * as Haptics from "expo-haptics";
+/// <reference lib="dom" />
 
 interface RecordButtonProps {
   playPip: () => void;
@@ -49,6 +50,7 @@ const RecordButton: React.FC<RecordButtonProps> = ({
   const [permissionResponse, requestPermission] = Audio.usePermissions();
   const [lastSentSize, setLastSentSize] = useState(0);
   const recordingRef = useRef<Audio.Recording | null>(null);
+  const lastSentSizeRef = useRef<number>(0);
 
   useEffect(() => {
     if (permissionResponse?.status !== "granted") {
@@ -75,24 +77,32 @@ const RecordButton: React.FC<RecordButtonProps> = ({
       if (!uri) return;
 
       const response = await fetch(uri);
-      console.log('response: ', response)
-
       const blob = await response.blob();
-      console.log('blob: ', blob);
 
-      // Get only the new data since the last update
-      const newData = blob.slice(lastSentSize, blob.size);
-      console.log('data chunk being sent: ', newData);
+      const fileSize = blob.size;
 
-      const buffer = await newData.arrayBuffer();
-      console.log('buffer: ', buffer);
-      ws?.send(buffer);
+      if (fileSize > lastSentSizeRef.current) {
+        // Slice the blob to get only the new data
+        const newDataBlob = blob.slice(lastSentSizeRef.current, fileSize);
+        console.log("chunk blob: ", newDataBlob);
 
-      setLastSentSize(blob.size);
+        const reader = new FileReader();
+        reader.readAsArrayBuffer(newDataBlob);
+        reader.onloadend = () => {
+          const audioBytes = reader.result;
+          if (audioBytes) {
+            ws?.send(audioBytes);
+          }
+        };
+
+        lastSentSizeRef.current = fileSize;
+      } else {
+        console.log('No new data to send');
+      }
     } catch (error) {
       console.error("Error sending audio data:", error);
     }
-  }, [ws, lastSentSize]);
+  }, [ws]);
 
   async function startRecording() {
     if (recordingRef.current) {
@@ -117,7 +127,7 @@ const RecordButton: React.FC<RecordButtonProps> = ({
 
       console.log('Starting recording...');
       const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY,
+        Audio.RecordingOptionsPresets.LOW_QUALITY,
         onRecordingStatusUpdate
       );
 
@@ -150,6 +160,7 @@ const RecordButton: React.FC<RecordButtonProps> = ({
       setRecording(null);
 
       // Reset the lastSentSize
+      lastSentSizeRef.current = 0;
       setLastSentSize(0);
 
       // You might want to send a message to the server indicating that the recording has ended
