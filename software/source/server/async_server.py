@@ -67,7 +67,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 elif "bytes" in data:
                     await interpreter.input(data["bytes"])
                     # print("RECEIVED INPUT", data)
-                    print("inserting into input queue")
+                    print("inserting into input queue bytes")
                 elif "text" in data:
                     # print("RECEIVED INPUT", data)
                     await interpreter.input(data["text"])
@@ -77,7 +77,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 output = await interpreter.output()
 
                 if isinstance(output, bytes):
-                    # print(f"Sending {len(output)} bytes of audio data.")
+                    print(f"Sending {len(output)} bytes of audio data.")
                     await websocket.send_bytes(output)
                     # we dont send out bytes rn, no TTS
 

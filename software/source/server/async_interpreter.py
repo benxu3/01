@@ -23,7 +23,7 @@ import os
 class AsyncInterpreter:
     def __init__(self, interpreter):
         self.interpreter = interpreter
-        self.audio_chunks = []
+        self.audio_chunks = bytearray()
 
         # STT
         self.stt = AudioToTextRecorder(
@@ -74,8 +74,8 @@ class AsyncInterpreter:
         if isinstance(chunk, bytes):
             # It's probably a chunk of audio
             self.stt.feed_audio(chunk)
-            print("feedint audio chunk to stt")
-            self.audio_chunks.append(chunk)
+            print("feeding audio chunk to stt")
+            self.audio_chunks.extend(chunk)
             # print("INTERPRETER FEEDING AUDIO")
 
         else:
@@ -89,9 +89,10 @@ class AsyncInterpreter:
                 # print("Starting STT")
                 self.stt.start()
                 self._last_lmc_start_flag = time.time()
+                self.audio_chunks = bytearray()
                 # self.interpreter.computer.terminal.stop() # Stop any code execution... maybe we should make interpreter.stop()?
             elif "end" in chunk:
-                # print("Running OI on input")
+                print("Running interpreter on input now!!!!!!!!!!")
                 asyncio.create_task(self.run())
             else:
                 await self._add_to_queue(self._input_queue, chunk)
@@ -174,13 +175,18 @@ class AsyncInterpreter:
 
         message = self.stt.text()
 
-        if self.audio_chunks:
-            audio_bytes = bytearray(b"".join(self.audio_chunks))
-            wav_file_path = bytes_to_wav(audio_bytes, "audio/raw")
-            print("wav_file_path ", wav_file_path)
-            self.audio_chunks = []
+        print("message is!!!", message)
 
-        print(message)
+        if self.audio_chunks:
+            print(f"Total audio chunks size: {len(self.audio_chunks)} bytes")
+            try:
+                wav_file_path = bytes_to_wav(self.audio_chunks, "audio/wav")
+                print(f"WAV file created: {wav_file_path}")
+            except Exception as e:
+                print(f"Failed to convert audio chunks to WAV: {str(e)}")
+                # Handle the error appropriately, maybe skip audio processing
+            finally:
+                self.audio_chunks = bytearray()  # Reset audio chunks after processing
 
         # Feed generate to RealtimeTTS
         self.add_to_output_queue_sync(
@@ -217,5 +223,5 @@ class AsyncInterpreter:
         asyncio.run(self._on_tts_chunk_async(chunk))
 
     async def output(self):
-        # print("outputting chunks")
+        print("outputting chunks")
         return await self._output_queue.get()
