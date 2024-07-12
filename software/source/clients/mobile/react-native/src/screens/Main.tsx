@@ -49,6 +49,7 @@ const Main: React.FC<MainProps> = ({ route }) => {
   });
   const [accumulatedMessage, setAccumulatedMessage] = useState<string>("");
   const scrollViewRef = useRef<ScrollView>(null);
+  const incomingBytesRef = useRef<boolean>(false);
 
   /**
    * Checks if audioDir exists in device storage, if not creates it.
@@ -153,6 +154,8 @@ const Main: React.FC<MainProps> = ({ route }) => {
     return () => backHandler.remove();
   }, [navigation]);
 
+
+
   /**
    * Handles all WebSocket events
    */
@@ -171,18 +174,34 @@ const Main: React.FC<MainProps> = ({ route }) => {
 
       websocket.onmessage = async (e) => {
         try {
-          const message = JSON.parse(e.data);
-          console.log("receive message!!!!!! ", message);
+          if (typeof e.data === 'string'){
+            const message = JSON.parse(e.data);
+            console.log("Received JSON message:", message);
 
-          if (message.content && message.type == "message" && message.role == "assistant"){
-            setAccumulatedMessage((prevMessage) => prevMessage + message.content);
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-          }
+            if (message.content && message.type == "message" && message.role == "assistant"){
+              setAccumulatedMessage((prevMessage) => prevMessage + message.content);
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }
 
-          if (message.content && message.type == "audio") {
-            const buffer = message.content;
-            if (buffer && buffer.length > 0) {
-              const filePath = await constructTempFilePath(buffer);
+            if (message && message.type == "audio") {
+              if (message.start) {
+                incomingBytesRef.current = true;
+                console.log("incoming bytes set to true");
+              } else if (message.end) {
+                incomingBytesRef.current = false;
+                console.log("incoming bytes set to false");
+              }
+            }
+
+          } else if (e.data instanceof Blob) {
+
+            if (incomingBytesRef.current){
+              console.log(e.data);
+
+              const arrayBuffer = await new Response(e.data).arrayBuffer();
+              const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+
+              const filePath = await constructTempFilePath(base64);
               if (filePath !== null) {
                 audioQueueRef.current.push(filePath);
 
@@ -192,9 +211,11 @@ const Main: React.FC<MainProps> = ({ route }) => {
               } else {
                 console.error("Failed to create file path");
               }
-            } else {
-              console.error("Received message is empty or undefined");
+
             }
+
+          } else {
+            console.error("Received unknown message type:", e.data);
           }
         } catch (error) {
           console.error("Error handling WebSocket message:", error);
@@ -211,6 +232,7 @@ const Main: React.FC<MainProps> = ({ route }) => {
       };
 
       setWs(websocket);
+
     } catch (error) {
       console.log(error);
       setConnectionStatus("Error creating WebSocket.");

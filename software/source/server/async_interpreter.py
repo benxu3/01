@@ -18,6 +18,7 @@ import time
 import asyncio
 import json
 import os
+import wave
 
 
 class AsyncInterpreter:
@@ -29,8 +30,9 @@ class AsyncInterpreter:
         self.stt = AudioToTextRecorder(
             model="tiny.en", spinner=False, use_microphone=False
         )
+        self.stt.start()  # It needs this for some reason
 
-        self.stt.stop()  # It needs this for some reason
+        print(f"STT model initialized: {self.stt}")
 
         # TTS
         if self.interpreter.tts == "coqui":
@@ -73,10 +75,20 @@ class AsyncInterpreter:
         """
         if isinstance(chunk, bytes):
             # It's probably a chunk of audio
-            self.stt.feed_audio(chunk)
-            print("feeding audio chunk to stt")
+            print(f"Feeding audio chunk to STT, size: {len(chunk)} bytes")
+
+            """
+            # Preprocess the audio chunk
+            processed_chunk = preprocess_audio_for_stt(chunk)
+            if processed_chunk is not None:
+                # Feed the processed audio to STT
+                self.stt.feed_audio(processed_chunk)
+            else:
+                print("Audio preprocessing failed")
+            """
+
+            # Store the original audio chunks if needed
             self.audio_chunks.extend(chunk)
-            # print("INTERPRETER FEEDING AUDIO")
 
         else:
 
@@ -86,7 +98,7 @@ class AsyncInterpreter:
                 pass
 
             if "start" in chunk:
-                # print("Starting STT")
+                print("Starting STT")
                 self.stt.start()
                 self._last_lmc_start_flag = time.time()
                 self.audio_chunks = bytearray()
@@ -167,52 +179,65 @@ class AsyncInterpreter:
         """
         self.interpreter.messages = self.active_chat_messages
 
-        self.stt.stop()
-
         input_queue = []
         while not self._input_queue.empty():
             input_queue.append(self._input_queue.get())
-
-        message = self.stt.text()
-
-        print("message is!!!", message)
 
         if self.audio_chunks:
             print(f"Total audio chunks size: {len(self.audio_chunks)} bytes")
             try:
                 wav_file_path = bytes_to_wav(self.audio_chunks, "audio/wav")
                 print(f"WAV file created: {wav_file_path}")
+
+                with wave.open(wav_file_path) as wav_file:
+                    metadata = wav_file.getparams()
+                    chunk = wav_file.readframes(metadata.nframes)
+                    self.stt.feed_audio(chunk)
+                    print("fed audio chunks! ", chunk)
+                    self.stt.stop()
+
             except Exception as e:
                 print(f"Failed to convert audio chunks to WAV: {str(e)}")
                 # Handle the error appropriately, maybe skip audio processing
             finally:
+                result = self.stt.text()
+                print(f"STT transcription result: {result}")
+                if result:
+                    print(f"Transcription: {result}")
+                else:
+                    print("No transcription result")
                 self.audio_chunks = bytearray()  # Reset audio chunks after processing
 
-        # Feed generate to RealtimeTTS
-        self.add_to_output_queue_sync(
-            {"role": "assistant", "type": "audio", "format": "bytes.wav", "start": True}
-        )
-        start_interpreter = time.time()
-        text_iterator = self.generate(message, start_interpreter)
-
-        self.tts.feed(text_iterator)
-        if not self.tts.is_playing():
-            self.tts.play_async(on_audio_chunk=self.on_tts_chunk, muted=True)
-
-        while True:
-            await asyncio.sleep(0.1)
-            # print("is_playing", self.tts.is_playing())
-            if not self.tts.is_playing():
+                # Feed generate to RealtimeTTS
                 self.add_to_output_queue_sync(
                     {
                         "role": "assistant",
                         "type": "audio",
                         "format": "bytes.wav",
-                        "end": True,
+                        "start": True,
                     }
                 )
-                self.tts.stop()
-                break
+                start_interpreter = time.time()
+                text_iterator = self.generate(result, start_interpreter)
+
+                self.tts.feed(text_iterator)
+                if not self.tts.is_playing():
+                    self.tts.play_async(on_audio_chunk=self.on_tts_chunk, muted=True)
+
+                while True:
+                    await asyncio.sleep(0.1)
+                    # print("is_playing", self.tts.is_playing())
+                    if not self.tts.is_playing():
+                        self.add_to_output_queue_sync(
+                            {
+                                "role": "assistant",
+                                "type": "audio",
+                                "format": "bytes.wav",
+                                "end": True,
+                            }
+                        )
+                        self.tts.stop()
+                        break
 
     async def _on_tts_chunk_async(self, chunk):
         # print("adding chunk to queue")

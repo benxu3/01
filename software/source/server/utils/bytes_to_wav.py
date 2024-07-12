@@ -3,7 +3,6 @@ import os
 import contextlib
 import tempfile
 import ffmpeg
-import subprocess
 
 
 def convert_mime_type_to_format(mime_type: str) -> str:

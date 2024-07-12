@@ -249,7 +249,7 @@ const RecordButton: React.FC<RecordButtonProps> = ({
               console.log("sent: ", audioBytes);
             }
           };
-
+          /**
           // Create a new Sound object
           const { sound } = await Audio.Sound.createAsync(
             { uri: uri },
@@ -267,7 +267,7 @@ const RecordButton: React.FC<RecordButtonProps> = ({
               sound.unloadAsync(); // Unload the sound to free up resources
             }
           });
-
+           */
         } catch (error) {
           console.error('Error playing recorded audio:', error);
         }
