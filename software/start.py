@@ -7,6 +7,10 @@ import importlib
 from source.server.tunnel import create_tunnel
 from source.server.async_server import start_server
 import subprocess
+import segno
+from livekit import api
+import socket
+import json
 
 import signal
 
@@ -51,7 +55,7 @@ def run(
         help="Opens the folder where this script is contained",
     ),
     profile: str = typer.Option(
-        "default.py", # default
+        "default.py",  # default
         "--profile",
         help="Specify the path to the profile, or the name of the file if it's in the `profiles` directory (run `--profiles` to open the profiles directory)",
     ),
@@ -60,7 +64,9 @@ def run(
         "--debug",
         help="Print latency measurements and save microphone recordings locally for manual playback.",
     ),
-
+    livekit: bool = typer.Option(
+        False, "--livekit", help="Creates QR code for livekit server and token."
+    ),
 ):
     _run(
         server=server,
@@ -76,6 +82,7 @@ def run(
         domain=domain,
         profiles=profiles,
         profile=profile,
+        livekit=livekit,
     )
 
 
@@ -90,22 +97,25 @@ def _run(
     client_type: str = "auto",
     qr: bool = False,
     debug: bool = False,
-    domain = None,
-    profiles = None,
-    profile = None,
+    domain=None,
+    profiles=None,
+    profile=None,
+    livekit: bool = False,
 ):
 
-    profiles_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "source", "server", "profiles")
+    profiles_dir = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "source", "server", "profiles"
+    )
 
     if profiles:
         if platform.system() == "Windows":
-            subprocess.Popen(['explorer', profiles_dir])
+            subprocess.Popen(["explorer", profiles_dir])
         elif platform.system() == "Darwin":
-            subprocess.Popen(['open', profiles_dir])
+            subprocess.Popen(["open", profiles_dir])
         elif platform.system() == "Linux":
-            subprocess.Popen(['xdg-open', profiles_dir])
+            subprocess.Popen(["xdg-open", profiles_dir])
         else:
-            subprocess.Popen(['open', profiles_dir])
+            subprocess.Popen(["open", profiles_dir])
         exit(0)
 
     if profile:
@@ -156,7 +166,8 @@ def _run(
 
     if expose:
         tunnel_thread = threading.Thread(
-            target=create_tunnel, args=[tunnel_service, server_host, server_port, qr, domain]
+            target=create_tunnel,
+            args=[tunnel_service, server_host, server_port, qr, domain],
         )
         tunnel_thread.start()
 
@@ -188,8 +199,76 @@ def _run(
         # if server:
         #     play_audio = False
 
-        client_thread = threading.Thread(target=module.main, args=[server_url, debug, play_audio])
+        client_thread = threading.Thread(
+            target=module.main, args=[server_url, debug, play_audio]
+        )
         client_thread.start()
+
+    if livekit:
+
+        def run_command(command):
+            subprocess.run(command, shell=True, check=True)
+
+        def getToken():
+            token = (
+                api.AccessToken("devkey", "secret")
+                .with_identity("identity")
+                .with_name("my name")
+                .with_grants(
+                    api.VideoGrants(
+                        room_join=True,
+                        room="my-room",
+                    )
+                )
+            )
+            return token.to_jwt()
+
+        # Get local IP address
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip_address = s.getsockname()[0]
+        s.close()
+
+        # Create QR code
+        url = f"ws://{ip_address}:7880"
+        token = getToken()
+        content = json.dumps({"server": url, "token": token})
+        qr_code = segno.make(content)
+        qr_code.terminal(compact=True)
+
+        print(f"Mobile setup complete. Scan the QR code to connect")
+        print(f"Server URL: {server}")
+
+        # Create threads for each command and store handles
+        # interpreter_thread = threading.Thread(target=run_command, args=("poetry run interpreter --server",))
+        livekit_thread = threading.Thread(
+            target=run_command, args=('livekit-server --dev --bind "0.0.0.0"',)
+        )
+        worker_thread = threading.Thread(
+            target=run_command, args=("python worker.py start",)
+        )
+
+        threads = [livekit_thread, worker_thread]  # interpreter_thread,
+
+        # Start all threads and set up logging for thread completion
+        for thread in threads:
+            thread.start()
+
+        def signal_handler(sig, frame):
+            print("Termination signal received. Shutting down...")
+            for thread in threads:
+                if thread.is_alive():
+                    # This will only work if the subprocess uses shell=True and the OS is Unix-like
+                    subprocess.run(f"pkill -P {os.getpid()}", shell=True)
+            os._exit(0)
+
+        # Register the signal handler
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
 
     try:
         if server:
