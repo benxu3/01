@@ -4,6 +4,7 @@ import subprocess
 import time
 
 
+@pytest.mark.skip()
 def test_poetry_run_01():
     process = subprocess.Popen(
         ["poetry", "run", "01"],

@@ -134,7 +134,7 @@ def _run(
     if not server_url:
         server_url = f"{server_host}:{server_port}"
 
-    if not server and not client:
+    if not server and not client and not livekit:
         server = True
         client = True
 
@@ -237,7 +237,7 @@ def _run(
         qr_code.terminal(compact=True)
 
         print(f"Mobile setup complete. Scan the QR code to connect")
-        print(f"Server URL: {server}")
+        print(f"Server URL: {url}")
 
         # Create threads for each command and store handles
         # interpreter_thread = threading.Thread(target=run_command, args=("poetry run interpreter --server",))

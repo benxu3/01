@@ -1,5 +1,7 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { ChatMessageType } from "./ChatTile";
+import { TranscriptionTile } from "./TranscriptionTile";
 import { useConfig } from "../hooks/useConfig";
 import { useAudioActivity } from "../hooks/useVolume";
 import AgentMultibandAudioVisualizer from "./AudioVisualizer";
@@ -17,12 +19,34 @@ import {
   useTracks,
 } from "@livekit/react-native";
 import {
+  useDataChannel,
+} from "@livekit/components-react";
+import {
   ConnectionState,
   RoomEvent,
   Track,
 } from "livekit-client";
 
+// Custom hook for responsive dimensions
+const useResponsiveDimensions = () => {
+  const [dimensions, setDimensions] = useState(() => Dimensions.get('window'));
+
+  React.useEffect(() => {
+    const subscription = Dimensions.addEventListener('change', ({ window }) => {
+      setDimensions(window);
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  return {
+    ...dimensions,
+    isLargeScreen: dimensions.width >= 1024,
+  };
+};
+
+
 export default function Playground() {
+  const { width, height, isLargeScreen } = useResponsiveDimensions();
   const { config } = useConfig();
   const { localParticipant } = useLocalParticipant();
   const [isMuted, setIsMuted] = useState(true);
@@ -33,6 +57,29 @@ export default function Playground() {
   const agentParticipant = participants.find((p) => p.isAgent);
   const roomState = useConnectionState();
   const tracks = useTracks();
+
+  const [messages, setMessages] = useState<ChatMessageType[]>([]);
+  const [transcripts, setTranscripts] = useState<ChatMessageType[]>([]);
+
+  const responsiveStyles = useMemo(() => {
+    return StyleSheet.create({
+      container: {
+        flexDirection: isLargeScreen ? 'row' : 'column',
+      },
+      mobileView: {
+        display: isLargeScreen ? 'none' : 'flex',
+        flex: 1,
+      },
+      desktopView: {
+        display: isLargeScreen ? 'flex' : 'none',
+        flex: isLargeScreen ? 3 : 1,
+      },
+      chatContainer: {
+        display: isLargeScreen ? 'flex' : 'none',
+        flex: isLargeScreen ? 1 : 0,
+      },
+    });
+  }, [isLargeScreen]);
 
   useEffect(() => {
     if (roomState === ConnectionState.Connected) {
@@ -66,6 +113,32 @@ export default function Playground() {
   const subscribedVolumes = useAudioActivity(
     agentAudioTrack?.publication?.track,
   );
+
+  const onDataReceived = useCallback(
+    (msg: any) => {
+      if (msg.topic === "transcription") {
+        const decoded = JSON.parse(
+          new TextDecoder("utf-8").decode(msg.payload)
+        );
+        let timestamp = new Date().getTime();
+        if ("timestamp" in decoded && decoded.timestamp > 0) {
+          timestamp = decoded.timestamp;
+        }
+        setTranscripts([
+          ...transcripts,
+          {
+            name: "You",
+            message: decoded.text,
+            timestamp: timestamp,
+            isSelf: true,
+          },
+        ]);
+      }
+    },
+    [transcripts]
+  );
+
+  useDataChannel(onDataReceived);
 
   const audioTileContent = useMemo(() => {
     const DisconnectedContent = () => (
@@ -111,6 +184,18 @@ export default function Playground() {
     roomState,
   ]);
 
+  const chatTileContent = useMemo(() => {
+    if (agentAudioTrack) {
+      return (
+        <TranscriptionTile
+          agentAudioTrack={agentAudioTrack}
+          accentColor={'#111827'}
+        />
+      );
+    }
+    return <></>;
+  }, [agentAudioTrack]);
+
   let mobileTabs: PlaygroundTab[] = [];
 
   if (config.settings.outputs.audio) {
@@ -124,6 +209,13 @@ export default function Playground() {
           {audioTileContent}
         </PlaygroundTile>
       ),
+    });
+  }
+
+  if (config.settings.chat) {
+    mobileTabs.push({
+      title: "Chat",
+      content: chatTileContent,
     });
   }
 
@@ -150,22 +242,32 @@ export default function Playground() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.mobileView}>
+    <View style={[styles.container, responsiveStyles.container]}>
+      <View style={[styles.mobileView, responsiveStyles.mobileView]}>
         <PlaygroundTabbedTile
           style={styles.fullSize}
           tabs={mobileTabs}
-          initialTab={mobileTabs.length - 1}
+          initialTab={0}
         />
       </View>
       {config.settings.outputs.audio && (
-        <View style={[styles.desktopView, styles.audioContainer]}>
+        <View style={[styles.desktopView, styles.audioContainer, responsiveStyles.desktopView]}>
           <PlaygroundTile
             title="Audio"
             style={styles.fullSize}
             childrenStyle={styles.centerContent}
           >
             {audioTileContent}
+          </PlaygroundTile>
+        </View>
+      )}
+      {config.settings.chat && (
+        <View style={[styles.chatContainer, responsiveStyles.chatContainer]}>
+          <PlaygroundTile
+            title="Chat"
+            style={styles.chatTile}
+          >
+            {chatTileContent}
           </PlaygroundTile>
         </View>
       )}
@@ -182,22 +284,21 @@ export default function Playground() {
   );
 }
 
-const { height } = Dimensions.get('window');
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    paddingTop: height * 0.08,
-    paddingBottom: height * 0.08
   },
   mobileView: {
     flex: 1,
-    display: 'flex',
   },
   desktopView: {
-    display: 'none',
+    flex: 1,
   },
   audioContainer: {
+    flex: 1,
+  },
+  chatContainer: {
     flex: 1,
   },
   fullSize: {
@@ -232,5 +333,10 @@ const styles = StyleSheet.create({
   muteButtonText: {
     color: 'white',
     fontSize: 16,
+  },
+  chatTile: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
 });
