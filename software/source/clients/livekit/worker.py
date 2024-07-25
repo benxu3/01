@@ -46,7 +46,6 @@ async def entrypoint(ctx: JobContext):
         chat_ctx=initial_ctx,  # Chat history context
     )
 
-    """
     chat = rtc.ChatManager(ctx.room)
 
     async def _answer_from_text(text: str):
@@ -58,11 +57,14 @@ async def entrypoint(ctx: JobContext):
 
     @chat.on("message_received")
     def on_chat_received(msg: rtc.ChatMessage):
+        print("RECEIVED MESSAGE OMG!!!!!!!!!!")
+        print("RECEIVED MESSAGE OMG!!!!!!!!!!")
+        print("RECEIVED MESSAGE OMG!!!!!!!!!!")
+        print("RECEIVED MESSAGE OMG!!!!!!!!!!")
         if not msg.message:
             return
 
         asyncio.create_task(_answer_from_text(msg.message))
-    """
 
     # Start the voice assistant with the LiveKit room
     assistant.start(ctx.room)

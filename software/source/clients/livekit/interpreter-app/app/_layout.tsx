@@ -1,6 +1,6 @@
 import { Stack } from 'expo-router';
 import { registerGlobals } from '@livekit/react-native';
-//import '../constants/cryptoPolyfill';
+import '../constants/cryptoPolyfill';
 
 registerGlobals();
 
