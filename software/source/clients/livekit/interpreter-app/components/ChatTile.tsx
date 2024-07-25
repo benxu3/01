@@ -1,7 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef} from 'react';
 import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { ChatMessage } from './ChatMessage';
-import { ChatMessageInput } from './ChatMessageInput';
 import { ChatMessage as ComponentsChatMessage } from '@livekit/components-react';
 
 const inputHeight = 48;
@@ -50,12 +49,6 @@ export const ChatTile = ({ messages, accentColor, onSend }: ChatTileProps) => {
           );
         })}
       </ScrollView>
-      <ChatMessageInput
-        height={inputHeight}
-        placeholder="Type a message"
-        accentColor={accentColor}
-        onSend={onSend}
-      />
     </View>
   );
 };

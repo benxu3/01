@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { ChatMessageType, ChatTile } from "./ChatTile";
 import {
   TrackReferenceOrPlaceholder,
-  useChat,
   useLocalParticipant,
   useTrackTranscription,
+  useChat,
 } from "@livekit/components-react";
 import {
   LocalParticipant,
@@ -13,12 +13,21 @@ import {
   TranscriptionSegment,
 } from "livekit-client";
 
+
 export function TranscriptionTile({
   agentAudioTrack,
   accentColor,
+  transcripts,
+  setTranscripts,
+  messages,
+  setMessages,
 }: {
   agentAudioTrack: TrackReferenceOrPlaceholder;
   accentColor: string;
+  transcripts: Map<string, ChatMessageType>;
+  setTranscripts: React.Dispatch<React.SetStateAction<Map<string, ChatMessageType>>>;
+  messages: ChatMessageType[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessageType[]>>;
 }) {
   const agentMessages = useTrackTranscription(agentAudioTrack);
   const localParticipant = useLocalParticipant();
@@ -28,7 +37,6 @@ export function TranscriptionTile({
     participant: localParticipant.localParticipant,
   });
 
-  const [transcripts, setTranscripts] = useState<Map<string, ChatMessageType>>(new Map());
   const { chatMessages, send: sendChat } = useChat();
 
   const updateTranscripts = useCallback((segments: TranscriptionSegment[], participant: Participant) => {
@@ -46,7 +54,7 @@ export function TranscriptionTile({
       });
       return newTranscripts;
     });
-  }, []);
+  }, [setTranscripts]);
 
   useEffect(() => {
     updateTranscripts(agentMessages.segments, agentAudioTrack.participant);
@@ -56,7 +64,7 @@ export function TranscriptionTile({
     updateTranscripts(localMessages.segments, localParticipant.localParticipant);
   }, [localMessages.segments, localParticipant.localParticipant, updateTranscripts]);
 
-  const messages = useMemo(() => {
+  useEffect(() => {
     const allMessages = Array.from(transcripts.values());
     for (const msg of chatMessages) {
       const isAgent = msg.from?.identity === agentAudioTrack.participant?.identity;
@@ -78,13 +86,14 @@ export function TranscriptionTile({
         isSelf: isSelf,
       });
     }
-    return allMessages.sort((a, b) => a.timestamp - b.timestamp);
-  }, [transcripts, chatMessages, agentAudioTrack.participant, localParticipant.localParticipant]);
+    setMessages(allMessages.sort((a, b) => a.timestamp - b.timestamp));
+  }, [transcripts, chatMessages, agentAudioTrack.participant, localParticipant.localParticipant, setMessages]);
 
   return (
     <ChatTile messages={messages} accentColor={accentColor} onSend={sendChat} />
   );
 }
+
 
 function segmentToChatMessage(
   s: TranscriptionSegment,
@@ -99,14 +108,15 @@ function segmentToChatMessage(
   };
   return msg;
 }
+
 /**
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { ChatMessageType, ChatTile } from "./ChatTile";
 import {
   TrackReferenceOrPlaceholder,
-  useChat,
   useLocalParticipant,
   useTrackTranscription,
+  useChat,
 } from "@livekit/components-react";
 import {
   LocalParticipant,
@@ -115,12 +125,21 @@ import {
   TranscriptionSegment,
 } from "livekit-client";
 
+
 export function TranscriptionTile({
   agentAudioTrack,
   accentColor,
+  transcripts,
+  setTranscripts,
+  messages,
+  setMessages,
 }: {
   agentAudioTrack: TrackReferenceOrPlaceholder;
   accentColor: string;
+  transcripts: Map<string, ChatMessageType>;
+  setTranscripts: React.Dispatch<React.SetStateAction<Map<string, ChatMessageType>>>;
+  messages: ChatMessageType[];
+  setMessages: React.Dispatch<React.SetStateAction<ChatMessageType[]>>;
 }) {
   const agentMessages = useTrackTranscription(agentAudioTrack);
   const localParticipant = useLocalParticipant();
@@ -130,44 +149,44 @@ export function TranscriptionTile({
     participant: localParticipant.localParticipant,
   });
 
-  const [transcripts, setTranscripts] = useState<Map<string, ChatMessageType>>(
-    new Map()
-  );
-  const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const { chatMessages, send: sendChat } = useChat();
 
+  console.log('TranscriptionTile: useChat hook result', { chatMessagesCount: chatMessages.length, sendChat: !!sendChat });
+
+  const updateTranscripts = useCallback((segments: TranscriptionSegment[], participant: Participant) => {
+    console.log('TranscriptionTile: Updating transcripts', { segmentsCount: segments.length, participantIdentity: participant.identity });
+    setTranscripts(prevTranscripts => {
+      const newTranscripts = new Map(prevTranscripts);
+      segments.forEach((s) => {
+        newTranscripts.set(
+          s.id,
+          segmentToChatMessage(
+            s,
+            newTranscripts.get(s.id),
+            participant
+          )
+        );
+      });
+      return newTranscripts;
+    });
+  }, [setTranscripts]);
+
   useEffect(() => {
-    const newTranscripts = new Map(transcripts);
+    console.log('TranscriptionTile: Agent messages updated', { segmentsCount: agentMessages.segments.length });
+    updateTranscripts(agentMessages.segments, agentAudioTrack.participant);
+  }, [agentMessages.segments, agentAudioTrack.participant, updateTranscripts]);
 
-    agentMessages.segments.forEach((s) =>
-      newTranscripts.set(
-        s.id,
-        segmentToChatMessage(
-          s,
-          newTranscripts.get(s.id),
-          agentAudioTrack.participant
-        )
-      )
-    );
-    localMessages.segments.forEach((s) =>
-      newTranscripts.set(
-        s.id,
-        segmentToChatMessage(
-          s,
-          newTranscripts.get(s.id),
-          localParticipant.localParticipant
-        )
-      )
-    );
+  useEffect(() => {
+    console.log('TranscriptionTile: Local messages updated', { segmentsCount: localMessages.segments.length });
+    updateTranscripts(localMessages.segments, localParticipant.localParticipant);
+  }, [localMessages.segments, localParticipant.localParticipant, updateTranscripts]);
 
-    setTranscripts(newTranscripts);
-
-    const allMessages = Array.from(newTranscripts.values());
+  useEffect(() => {
+    console.log('TranscriptionTile: Updating messages', { transcriptsCount: transcripts.size, chatMessagesCount: chatMessages.length });
+    const allMessages = Array.from(transcripts.values());
     for (const msg of chatMessages) {
-      const isAgent =
-        msg.from?.identity === agentAudioTrack.participant?.identity;
-      const isSelf =
-        msg.from?.identity === localParticipant.localParticipant.identity;
+      const isAgent = msg.from?.identity === agentAudioTrack.participant?.identity;
+      const isSelf = msg.from?.identity === localParticipant.localParticipant.identity;
       let name = msg.from?.name;
       if (!name) {
         if (isAgent) {
@@ -185,18 +204,23 @@ export function TranscriptionTile({
         isSelf: isSelf,
       });
     }
-    allMessages.sort((a, b) => a.timestamp - b.timestamp);
-    setMessages(allMessages);
-  }, [
-    chatMessages,
-    localParticipant.localParticipant,
-    agentAudioTrack.participant,
-    agentMessages.segments,
-    localMessages.segments,
-  ]);
+    setMessages(allMessages.sort((a, b) => a.timestamp - b.timestamp));
+  }, [transcripts, chatMessages, agentAudioTrack.participant, localParticipant.localParticipant, setMessages]);
+
+  const handleSendChat = useCallback(async (message: string) => {
+    console.log('TranscriptionTile: Sending chat message', { message });
+    try {
+      const result = await sendChat(message);
+      console.log('TranscriptionTile: Chat message sent successfully', { result });
+      return result;
+    } catch (error) {
+      console.error('TranscriptionTile: Error sending chat message', { error });
+      throw error;
+    }
+  }, [sendChat]);
 
   return (
-    <ChatTile messages={messages} accentColor={accentColor} onSend={sendChat} />
+    <ChatTile messages={messages} accentColor={accentColor} onSend={handleSendChat} />
   );
 }
 

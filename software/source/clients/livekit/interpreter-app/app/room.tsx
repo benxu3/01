@@ -7,8 +7,8 @@ import {
   registerGlobals,
 } from '@livekit/react-native';
 
-import Playground from '@/components/Playground';
-import { ConfigProvider } from '@/hooks/useConfig';
+import Playground from '../components/Playground';
+import { ConfigProvider } from '../hooks/useConfig';
 import { useLocalSearchParams } from 'expo-router';
 
 registerGlobals();
@@ -19,9 +19,20 @@ registerGlobals();
 export default function App() {
   const params = useLocalSearchParams();
   console.log(params);
-  const parsedData = JSON.parse(params.data as string);
-  const wsURL = parsedData.server;
-  const token = parsedData.token;
+  let wsURL = '';
+  let token = '';
+  try {
+    const parsedData = JSON.parse(params.data as string);
+    wsURL = parsedData.server;
+    token = parsedData.token;
+    if (!wsURL || !token) {
+      throw new Error('Invalid URL or token');
+    }
+  } catch (error) {
+    console.error('Error parsing data:', error);
+    // Handle the error appropriately, e.g., show an error message to the user
+    // or navigate back to the previous screen
+  }
 
   // Start the audio session first.
     useEffect(() => {

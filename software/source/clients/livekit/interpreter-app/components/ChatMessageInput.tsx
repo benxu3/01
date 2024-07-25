@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 12,
-    color: '#d1d5db',
+    color: '#6b7280',
     padding: 8,
     paddingRight: 24,
     borderWidth: 1,

@@ -46,7 +46,7 @@ const useResponsiveDimensions = () => {
 
 
 export default function Playground() {
-  const { width, height, isLargeScreen } = useResponsiveDimensions();
+  const { isLargeScreen } = useResponsiveDimensions();
   const { config } = useConfig();
   const { localParticipant } = useLocalParticipant();
   const [isMuted, setIsMuted] = useState(true);
@@ -59,7 +59,7 @@ export default function Playground() {
   const tracks = useTracks();
 
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
-  const [transcripts, setTranscripts] = useState<ChatMessageType[]>([]);
+  const [transcripts, setTranscripts] = useState<Map<string, ChatMessageType>>(new Map());
 
   const responsiveStyles = useMemo(() => {
     return StyleSheet.create({
@@ -124,18 +124,20 @@ export default function Playground() {
         if ("timestamp" in decoded && decoded.timestamp > 0) {
           timestamp = decoded.timestamp;
         }
-        setTranscripts([
-          ...transcripts,
-          {
+        setTranscripts(prevTranscripts => {
+          const newTranscripts = new Map(prevTranscripts);
+          const id = `local-${timestamp}`; // Create a unique ID for this transcript
+          newTranscripts.set(id, {
             name: "You",
             message: decoded.text,
             timestamp: timestamp,
             isSelf: true,
-          },
-        ]);
+          });
+          return newTranscripts;
+        });
       }
     },
-    [transcripts]
+    []
   );
 
   useDataChannel(onDataReceived);
@@ -190,11 +192,15 @@ export default function Playground() {
         <TranscriptionTile
           agentAudioTrack={agentAudioTrack}
           accentColor={'#111827'}
+          transcripts={transcripts}
+          setTranscripts={setTranscripts}
+          messages={messages}
+          setMessages={setMessages}
         />
       );
     }
     return <></>;
-  }, [agentAudioTrack]);
+  }, [agentAudioTrack, transcripts, messages]);
 
   let mobileTabs: PlaygroundTab[] = [];
 
@@ -288,6 +294,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
+    marginTop: '12%',
   },
   mobileView: {
     flex: 1,
