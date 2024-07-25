@@ -1,22 +1,26 @@
-# iOS/Android Client
+# Expo Client
 
 **_WORK IN PROGRESS_**
 
-This repository contains the source code for the 01 iOS/Android app. Work in progress, we will continue to improve this application to get it working properly.
+This repository contains the source code for a basic 01 Expo app compatible on both iOS and Android. Work in progress, we will continue to improve this application to get it working properly.
 
 Feel free to improve this and make a pull request!
 
-If you want to run it on your own, you will need to install Expo Go on your mobile device.
+Follow the instructions below to install the development version on your mobile device.
 
 ## Setup Instructions
 
 Follow the **[software setup steps](https://github.com/OpenInterpreter/01?tab=readme-ov-file#software)** in the main repo's README first before you read this
 
+### Client Setup
+
+Install dependencies
 ```shell
 cd software/source/clients/livekit/interpreter-app
-npm install                                         # install dependencies
-npx expo start                                      # start local development server
+npm install
 ```
+
+### Livekit Server Setup
 
 Set the following environment variables:
 ```shell
@@ -28,14 +32,7 @@ export DEEPGRAM_API_KEY=<your Deepgram API key>
 export OPENAI_API_KEY=<your OpenAI API key>
 ```
 
-
-Set up a Python virtual environment:
-```shell
-python -m venv venv
-source venv/bin/activate
-```
-
-Install the necessary Python packages:
+Install the necessary Python packages in the `software` directory,:
 ```shell
 poetry add \
 livekit \
@@ -45,26 +42,30 @@ livekit-plugins-openai \
 livekit-plugins-elevenlabs \
 livekit-plugins-silero \
 livekit-api \
-python-dotenv \
+python-dotenv
 ```
 
+## Latest Build
 
-Run mobile app
+### Android
+Scan the QR code to install the latest development build .apk on your device!
+
+### iOS
+In progress, come back later!
+
+
+## Run the App
+
+Run the Livekit local development server setup
 ```shell
-poetry run interpreter --server
+cd software
 poetry run 01 --livekit
+```
+
+Start the Expo development server
+```shell
+cd software/source/clients/livekit/interpreter-app
 npx expo start
 ```
 
-In **Expo Go** select _Scan QR code_ to scan the QR code produced by the `npx expo start` command
-
-## Using the App
-
-```shell
-cd software                             # cd into `software`
-poetry run 01 --mobile                  # exposes QR code for 01 Light server
-```
-
-In the app, select _Scan Code_ to scan the QR code produced by the `poetry run 01 --mobile` command
-
-Press and hold the button to speak, release to make the request. To rescan the QR code, swipe left on the screen to go back.
+Open the app on your device, press _Scan QR code_ to scan the QR code produced by the `poetry run 01 --livekit` command.
