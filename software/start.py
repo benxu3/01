@@ -238,6 +238,7 @@ def _run(
 
         print(f"Mobile setup complete. Scan the QR code to connect")
         print(f"Server URL: {url}")
+        print(f"Token: {token}")
 
         # Create threads for each command and store handles
         # interpreter_thread = threading.Thread(target=run_command, args=("poetry run interpreter --server",))
@@ -245,7 +246,10 @@ def _run(
             target=run_command, args=('livekit-server --dev --bind "0.0.0.0"',)
         )
         worker_thread = threading.Thread(
-            target=run_command, args=("python worker.py start",)
+            target=run_command,
+            args=(
+                f"python {os.path.join(os.path.dirname(__file__), 'source', 'clients', 'livekit', 'worker.py')} start",
+            ),
         )
 
         threads = [livekit_thread, worker_thread]  # interpreter_thread,
