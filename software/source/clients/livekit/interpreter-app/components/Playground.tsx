@@ -142,6 +142,8 @@ export default function Playground() {
 
   useDataChannel(onDataReceived);
 
+  const isSpeaking = subscribedVolumes.some(value => value > 0.1);
+
   const audioTileContent = useMemo(() => {
     const DisconnectedContent = () => (
       <View style={styles.centeredContent}>
@@ -159,14 +161,14 @@ export default function Playground() {
     const VisualizerContent = () => (
       <View style={styles.centeredContent}>
         <AgentMultibandAudioVisualizer
-          state="speaking"
-          barWidth={45}
-          minBarHeight={30}
-          maxBarHeight={300}
+          state={isSpeaking ? 'speaking' : 'idle'}
+          barWidth={10}
+          minBarHeight={20}
+          maxBarHeight={100}
           accentColor={"#00FFFF"}
           frequencies={subscribedVolumes}
-          borderRadius={20}
-          gap={20}
+          borderRadius={5}
+          gap={5}
         />
       </View>
     );
@@ -184,6 +186,7 @@ export default function Playground() {
     agentAudioTrack,
     subscribedVolumes,
     roomState,
+    isSpeaking
   ]);
 
   const chatTileContent = useMemo(() => {

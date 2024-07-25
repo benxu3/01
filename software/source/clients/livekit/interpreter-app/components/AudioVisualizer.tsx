@@ -1,3 +1,85 @@
+// AgentMultibandAudioVisualizer.js
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Animated } from 'react-native';
+
+const AgentMultibandAudioVisualizer = ({
+  state,
+  barWidth,
+  minBarHeight,
+  maxBarHeight,
+  accentColor,
+  frequencies,
+  borderRadius,
+  gap,
+}) => {
+  const animatedValues = useRef(frequencies.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    if (state === 'speaking') {
+      Animated.parallel(
+        frequencies.map((frequency, index) =>
+          Animated.spring(animatedValues[index], {
+            toValue: frequency,
+            friction: 3,
+            tension: 40,
+            useNativeDriver: false,
+          })
+        )
+      ).start();
+    } else {
+      // For non-speaking states, animate to minimum height
+      Animated.parallel(
+        animatedValues.map(value =>
+          Animated.spring(value, {
+            toValue: 0,
+            friction: 3,
+            tension: 40,
+            useNativeDriver: false,
+          })
+        )
+      ).start();
+    }
+  }, [state, frequencies, animatedValues]);
+
+  const getBarStyle = (index) => {
+    const color = state === 'speaking' ? accentColor : '#0D0D0D';
+
+    const height = animatedValues[index].interpolate({
+      inputRange: [0, 1],
+      outputRange: [minBarHeight, maxBarHeight],
+    });
+
+    return {
+      width: barWidth,
+      height,
+      backgroundColor: color,
+      borderRadius,
+      marginHorizontal: gap / 2,
+    };
+  };
+
+  return (
+    <View style={styles.container}>
+      {frequencies.map((_, index) => (
+        <Animated.View
+          key={`frequency-${index}`}
+          style={getBarStyle(index)}
+        />
+      ))}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});
+
+export default AgentMultibandAudioVisualizer;
+/**
 import React, { useEffect, useState, useRef } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 
@@ -117,3 +199,4 @@ const styles = StyleSheet.create({
 });
 
 export default AgentMultibandAudioVisualizer;
+ */
