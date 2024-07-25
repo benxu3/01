@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, StyleSheet, Dimensions } from 'react-native';
 import { router } from 'expo-router';
-import { PlaygroundTile } from '@/components/PlaygroundTile';
-import { Button } from '@/components/Button';
+import { PlaygroundTile } from '../components/PlaygroundTile';
+import { Button } from '../components/Button';
 
 const { height } = Dimensions.get('window');
 
