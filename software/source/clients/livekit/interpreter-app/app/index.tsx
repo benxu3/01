@@ -11,7 +11,7 @@ export default function Index() {
     router.navigate('/scan');
   }
 
-  const data = {"data": "{\"server\": \"ws://192.168.0.170:7880\", \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MjE5MTcyMjIsImlzcyI6ImRldmtleSIsIm5hbWUiOiJ0ZXN0X3VzZXIiLCJuYmYiOjE3MjE4MzA4MjIsInN1YiI6InRlc3RfdXNlciIsInZpZGVvIjp7InJvb20iOiJ0ZXN0X3Jvb20iLCJyb29tSm9pbiI6dHJ1ZX19.EwxQYgLBwDNwx4NszvibTsQmHTIv6XyJunGuWNkRCGo\"}"};
+  const data = {"data": "{\"server\": \"ws://10.0.0.148:7880\", \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MjIwMjcwMzUsImlzcyI6ImRldmtleSIsIm5hbWUiOiJ0ZXN0X3VzZXIiLCJuYmYiOjE3MjE5NDA2MzUsInN1YiI6InRlc3RfdXNlciIsInZpZGVvIjp7InJvb20iOiJ0ZXN0X3Jvb20iLCJyb29tSm9pbiI6dHJ1ZX19.ygI-ToQapKafi94y_SH3W0Jh5MrBGb-D2Z91KcMub7Q\"}"};
 
   function handleConnect() {
     router.navigate({

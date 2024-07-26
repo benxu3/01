@@ -69,3 +69,8 @@ npx expo start
 ```
 
 Open the app on your device, press _Scan QR code_ to scan the QR code produced by the `poetry run 01 --livekit` command.
+
+```shell
+npx expo prebuild --clean           # update changes
+
+```
