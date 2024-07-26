@@ -87,24 +87,29 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
     if (!appConfig.settings.editable) {
       return null;
     }
-    const parsedUrl = Linking.parse(url || '');
-    const params = parsedUrl.queryParams || {};
-    return {
-      editable: true,
-      chat: params.chat === '1',
-      theme_color: params.theme_color as string,
-      inputs: {
-        camera: params.cam === '1',
-        mic: params.mic === '1',
-      },
-      outputs: {
-        audio: params.audio === '1',
-        video: params.video === '1',
+    try {
+      const parsedUrl = Linking.parse(url || '');
+      const params = parsedUrl.queryParams || {};
+      return {
+        editable: true,
         chat: params.chat === '1',
-      },
-      ws_url: "",
-      token: "",
-    } as UserSettings;
+        theme_color: params.theme_color as string,
+        inputs: {
+          camera: params.cam === '1',
+          mic: params.mic === '1',
+        },
+        outputs: {
+          audio: params.audio === '1',
+          video: params.video === '1',
+          chat: params.chat === '1',
+        },
+        ws_url: "",
+        token: "",
+      } as UserSettings;
+    } catch (error) {
+      console.warn('Error parsing URL:', error);
+      return null;
+    }
   }, [appConfig, url]);
 
   const getSettingsFromStorage = useCallback(async () => {

@@ -1,7 +1,9 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
 import { router } from 'expo-router';
-import { Button, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { PlaygroundTile } from '../components/PlaygroundTile';
+import { Button } from '../components/Button';
 
 export default function Scan() {
   const [scanned, setScanned] = useState(false);
@@ -16,8 +18,16 @@ export default function Scan() {
     // Camera permissions are not granted yet.
     return (
       <View style={styles.container}>
-        <Text style={{ textAlign: 'center' }}>We need your permission to show the camera</Text>
-        <Button onPress={requestPermission} title="grant permission" />
+        <PlaygroundTile
+          title="Camera Permission"
+          style={styles.tile}
+          childrenStyle={styles.tileContent}
+        >
+          <Text style={{ textAlign: 'center', marginBottom: 10 }}>We need your permission to show the camera</Text>
+          <Button accentColor='#111827' style={styles.button} onPress={requestPermission}>
+            Grant Permission
+          </Button>
+        </PlaygroundTile>
       </View>
     );
   }
@@ -29,10 +39,15 @@ export default function Scan() {
       `Bar code with type ${type} and data ${data} has been scanned!`
     );
 
-    router.navigate({
+    try{
+      router.navigate({
         pathname: "/room",
         params: {data}
-    });
+      });
+    } catch (err) {
+      console.log(err);
+    }
+
   }
 
   return (
@@ -60,6 +75,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  tile: {
+    flex: 1,
+    borderColor: '#1f2937',
+  },
+  tileContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   camera: {
     flex: 1,
   },
@@ -70,9 +93,8 @@ const styles = StyleSheet.create({
     margin: 64,
   },
   button: {
-    flex: 1,
-    alignSelf: 'flex-end',
-    alignItems: 'center',
+    width: '50%',
+    marginVertical: 10,
   },
   text: {
     fontSize: 24,

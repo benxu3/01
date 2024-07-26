@@ -17,27 +17,32 @@ registerGlobals();
 // This sample hardcodes a token which expires in 2 hours.
 
 export default function App() {
-  const params = useLocalSearchParams();
-  console.log(params);
   let wsURL = '';
   let token = '';
   try {
+    const params = useLocalSearchParams();
+    console.log(params);
     const parsedData = JSON.parse(params.data as string);
     wsURL = parsedData.server;
     token = parsedData.token;
     if (!wsURL || !token) {
       throw new Error('Invalid URL or token');
     }
-  } catch (error) {
-    console.error('Error parsing data:', error);
+  } catch (err) {
+    console.error('Error parsing data:', err);
     // Handle the error appropriately, e.g., show an error message to the user
     // or navigate back to the previous screen
+
   }
 
   // Start the audio session first.
     useEffect(() => {
       let start = async () => {
-      await AudioSession.startAudioSession();
+        try {
+          await AudioSession.startAudioSession();
+        } catch (error) {
+          console.error('Failed to start audio session: ', error);
+        }
       };
 
       start();
