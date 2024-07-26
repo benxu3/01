@@ -45,14 +45,6 @@ livekit-api \
 python-dotenv
 ```
 
-## Latest Build
-
-### Android
-Scan the QR code to install the latest development build .apk on your device!
-
-### iOS
-In progress, come back later!
-
 
 ## Run the App
 
@@ -70,6 +62,9 @@ npx expo start
 
 Open the app on your device, press _Scan QR code_ to scan the QR code produced by the `poetry run 01 --livekit` command.
 
+
+
+## Development Scripts
 ```shell
 npx expo prebuild --clean           # update changes
 
