@@ -252,7 +252,10 @@ def _run(
             ),
         )
 
-        threads = [livekit_thread, worker_thread]  # interpreter_thread,
+        threads = [
+            livekit_thread,
+            worker_thread,
+        ]  # interpreter_thread
 
         # Start all threads and set up logging for thread completion
         for thread in threads:

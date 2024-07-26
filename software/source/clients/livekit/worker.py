@@ -36,7 +36,7 @@ async def entrypoint(ctx: JobContext):
     # See https://github.com/livekit/agents/blob/main/livekit-agents/livekit/agents/voice_assistant/assistant.py
     # for details on how it works.
     open_interpreter = OpenLLM(
-        model="open-interpreter", base_url="http://0.0.0.0:8000/v0"
+        model="open-interpreter", base_url="http:/0.0.0.0:8000/v0"
     )
     assistant = VoiceAssistant(
         vad=VAD(),  # Voice Activity Detection

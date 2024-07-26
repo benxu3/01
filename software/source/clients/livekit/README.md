@@ -45,6 +45,9 @@ livekit-api \
 python-dotenv
 ```
 
+```shell
+brew install livekit
+```
 
 ## Run the App
 
