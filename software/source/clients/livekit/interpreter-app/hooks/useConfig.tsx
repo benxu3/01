@@ -1,15 +1,11 @@
-import React, { createContext, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Linking from 'expo-linking';
-import Constants from 'expo-constants';
+
 
 export type AppConfig = {
   title: string;
   description: string;
-  github_link?: string;
-  video_fit?: "cover" | "contain";
   settings: UserSettings;
-  show_qr?: boolean;
 };
 
 export type UserSettings = {
@@ -29,46 +25,27 @@ export type UserSettings = {
 };
 
 const defaultConfig: AppConfig = {
-  title: "LiveKit Agents Playground",
-  description: "A playground for testing LiveKit Agents",
-  video_fit: "cover",
+  title: "01 App",
+  description: "Talk to Open Interpreter!",
   settings: {
-    editable: true,
+    editable: false,
     theme_color: "cyan",
     chat: true,
     inputs: {
-      camera: true,
+      camera: false,
       mic: true,
     },
     outputs: {
       audio: true,
-      video: true,
+      video: false,
     },
     ws_url: "",
     token: "",
   },
-  show_qr: false,
 };
 
 const useAppConfig = (): AppConfig => {
-  return useMemo(() => {
-    const appConfig = Constants.expoConfig?.extra?.APP_CONFIG;
-    if (appConfig) {
-      try {
-        const parsedConfig = JSON.parse(appConfig) as AppConfig;
-        if (parsedConfig.settings === undefined) {
-          parsedConfig.settings = defaultConfig.settings;
-        }
-        if (parsedConfig.settings.editable === undefined) {
-          parsedConfig.settings.editable = true;
-        }
-        return parsedConfig;
-      } catch (e) {
-        console.error("Error parsing app config:", e);
-      }
-    }
-    return defaultConfig;
-  }, []);
+  return defaultConfig;
 };
 
 type ConfigData = {
@@ -80,37 +57,6 @@ const ConfigContext = createContext<ConfigData | undefined>(undefined);
 
 export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
   const appConfig = useAppConfig();
-  const [localColorOverride, setLocalColorOverride] = useState<string | null>(null);
-  const url = Linking.useURL();
-
-  const getSettingsFromUrl = useCallback(() => {
-    if (!appConfig.settings.editable) {
-      return null;
-    }
-    try {
-      const parsedUrl = Linking.parse(url || '');
-      const params = parsedUrl.queryParams || {};
-      return {
-        editable: true,
-        chat: params.chat === '1',
-        theme_color: params.theme_color as string,
-        inputs: {
-          camera: params.cam === '1',
-          mic: params.mic === '1',
-        },
-        outputs: {
-          audio: params.audio === '1',
-          video: params.video === '1',
-          chat: params.chat === '1',
-        },
-        ws_url: "",
-        token: "",
-      } as UserSettings;
-    } catch (error) {
-      console.warn('Error parsing URL:', error);
-      return null;
-    }
-  }, [appConfig, url]);
 
   const getSettingsFromStorage = useCallback(async () => {
     if (!appConfig.settings.editable) {
@@ -129,36 +75,21 @@ export const ConfigProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   const getConfig = useCallback(async () => {
-    if (!appConfig.settings.editable) {
-      if (localColorOverride) {
-        appConfig.settings.theme_color = localColorOverride;
-      }
-      return appConfig;
-    }
-    const storageSettings = await getSettingsFromStorage();
-    const urlSettings = getSettingsFromUrl();
-    if (!storageSettings && urlSettings) {
-      await setStorageSettings(urlSettings);
-    }
     const newStorageSettings = await getSettingsFromStorage();
     if (!newStorageSettings) {
       return appConfig;
     }
     appConfig.settings = newStorageSettings;
     return { ...appConfig };
-  }, [appConfig, getSettingsFromStorage, getSettingsFromUrl, localColorOverride, setStorageSettings]);
+  }, [appConfig, getSettingsFromStorage]);
 
   const setUserSettings = useCallback(async (settings: UserSettings) => {
-    if (!appConfig.settings.editable) {
-      setLocalColorOverride(settings.theme_color);
-      return;
-    }
     await setStorageSettings(settings);
     _setConfig((prev) => ({
       ...prev,
       settings: settings,
     }));
-  }, [appConfig, setStorageSettings]);
+  }, [setStorageSettings]);
 
   const [config, _setConfig] = useState<AppConfig>(appConfig);
 

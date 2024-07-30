@@ -1,20 +1,13 @@
 import asyncio
-import logging
 import copy
-from collections import deque
+import os
 
-from livekit import agents, rtc
-from livekit.agents import JobContext, JobRequest, WorkerOptions, cli
-from livekit.agents.llm import (
-    ChatContext,
-    ChatMessage,
-    ChatRole,
-)
+from livekit.agents import AutoSubscribe, JobContext, WorkerOptions, cli
+from livekit.agents.llm import ChatContext, ChatMessage
+from livekit import rtc
 from livekit.agents.voice_assistant import VoiceAssistant
-from livekit.plugins import deepgram, elevenlabs, openai, silero
+from livekit.plugins import deepgram, openai, silero, elevenlabs
 from dotenv import load_dotenv
-from llm import OpenLLM
-from vad import VAD
 
 load_dotenv()
 
@@ -22,24 +15,25 @@ load_dotenv()
 # This function is the entrypoint for the agent.
 async def entrypoint(ctx: JobContext):
     # Create an initial chat context with a system prompt
-    initial_ctx = ChatContext(
-        messages=[
-            ChatMessage(
-                role=ChatRole.SYSTEM,
-                text="""You are a voice assistant created by LiveKit. Your interface with users will be voice.
-                Pretend we're having a conversation, no special formatting or headings, just natural speech.""",
-            )
-        ]
+    initial_ctx = ChatContext().append(
+        role="system",
+        text=(
+            "You are a voice assistant created by LiveKit. Your interface with users will be voice. "
+            "You should use short and concise responses, and avoiding usage of unpronounceable punctuation."
+        ),
     )
+
+    # Connect to the LiveKit room
+    await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     # VoiceAssistant is a class that creates a full conversational AI agent.
     # See https://github.com/livekit/agents/blob/main/livekit-agents/livekit/agents/voice_assistant/assistant.py
     # for details on how it works.
-    open_interpreter = OpenLLM(
-        model="open-interpreter", base_url="http:/0.0.0.0:8000/v0"
+    open_interpreter = openai.LLM(
+        model="open-interpreter", base_url="http://10.0.0.148:8000/v0"
     )
     assistant = VoiceAssistant(
-        vad=VAD(),  # Voice Activity Detection
+        vad=silero.VAD.load(),  # Voice Activity Detection
         stt=deepgram.STT(),  # Speech-to-Text
         llm=open_interpreter,  # Language Model
         tts=elevenlabs.TTS(),  # Text-to-Speech
@@ -49,10 +43,10 @@ async def entrypoint(ctx: JobContext):
     chat = rtc.ChatManager(ctx.room)
 
     async def _answer_from_text(text: str):
-        chat_ctx = copy.deepcopy(assistant.chat_context)
-        chat_ctx.messages.append(ChatMessage(role=ChatRole.USER, text=text))
+        chat_ctx = copy.deepcopy(assistant._chat_ctx)
+        chat_ctx.messages.append(ChatMessage(role="user", content=text))
 
-        stream = await open_interpreter.chat(history=chat_ctx)
+        stream = open_interpreter.chat(chat_ctx=chat_ctx)
         await assistant.say(stream)
 
     @chat.on("message_received")
@@ -69,22 +63,24 @@ async def entrypoint(ctx: JobContext):
     # Start the voice assistant with the LiveKit room
     assistant.start(ctx.room)
 
-    await asyncio.sleep(3)
+    await asyncio.sleep(1)
 
     # Greets the user with an initial message
     await assistant.say("Hey, how can I help you today?", allow_interruptions=True)
 
 
-# This function is called when the worker receives a job request
-# from a LiveKit server.
-async def request_fnc(req: JobRequest) -> None:
-    logging.info("received request %s", req)
-    # Accept the job tells the LiveKit server that this worker
-    # wants the job. After the LiveKit server acknowledges that job is accepted,
-    # the entrypoint function is called.
-    await req.accept(entrypoint)
-
-
 if __name__ == "__main__":
-    # Initialize the worker with the request function
-    cli.run_app(WorkerOptions(request_fnc))
+    ws_url = os.getenv("LIVEKIT_URL")
+    if ws_url:
+        # Initialize the worker with the entrypoint
+        cli.run_app(
+            WorkerOptions(
+                entrypoint_fnc=entrypoint,
+                ws_url=ws_url,
+                api_key=os.getenv("LIVEKIT_API_KEY"),
+                api_secret=os.getenv("LIVEKIT_API_SECRET"),
+            )
+        )
+    else:
+        print("Error: LIVEKIT_URL not set in .env file")
+        exit(1)

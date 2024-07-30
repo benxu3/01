@@ -26,6 +26,7 @@ import {
   RoomEvent,
   Track,
 } from "livekit-client";
+import TypeformEmbed from "./Typeform";
 
 // Custom hook for responsive dimensions
 const useResponsiveDimensions = () => {
@@ -228,6 +229,15 @@ export default function Playground() {
     });
   }
 
+  mobileTabs.push({
+    title: "Contact",
+    content: (
+      <View style={styles.typeformContainer}>
+        <TypeformEmbed />
+      </View>
+    ),
+  });
+
   const unmute = () => {
     if (localParticipant) {
       const audioTrack = localParticipant.getTrackPublication(Track.Source.Microphone)?.track;
@@ -280,6 +290,9 @@ export default function Playground() {
           </PlaygroundTile>
         </View>
       )}
+      <View style={[styles.contactContainer, responsiveStyles.desktopView]}>
+        <TypeformEmbed />
+      </View>
       <TouchableOpacity
         onPressIn={unmute}
         onPressOut={mute}
@@ -297,7 +310,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 16,
-    marginTop: '12%',
   },
   mobileView: {
     flex: 1,
@@ -345,6 +357,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   chatTile: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  typeformContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  contactContainer: {
     flex: 1,
     width: '100%',
     height: '100%',

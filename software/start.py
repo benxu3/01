@@ -242,9 +242,7 @@ def _run(
 
         # Create threads for each command and store handles
         # interpreter_thread = threading.Thread(target=run_command, args=("poetry run interpreter --server",))
-        livekit_thread = threading.Thread(
-            target=run_command, args=('livekit-server --dev --bind "0.0.0.0"',)
-        )
+        # livekit_thread = threading.Thread(target=run_command, args=('livekit-server --dev --bind "0.0.0.0"',))
         worker_thread = threading.Thread(
             target=run_command,
             args=(
@@ -253,7 +251,7 @@ def _run(
         )
 
         threads = [
-            livekit_thread,
+            # livekit_thread,
             worker_thread,
         ]  # interpreter_thread
 

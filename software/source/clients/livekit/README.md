@@ -45,6 +45,7 @@ livekit-api \
 python-dotenv
 ```
 
+to install livekit server
 ```shell
 brew install livekit
 ```
@@ -69,6 +70,7 @@ Open the app on your device, press _Scan QR code_ to scan the QR code produced b
 
 ## Development Scripts
 ```shell
+npx expo install expo-dev-client
+brew install livekit-cli
 npx expo prebuild --clean           # update changes
-
 ```
