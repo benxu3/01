@@ -60,6 +60,6 @@ const styles = StyleSheet.create({
     paddingRight: 16,
   },
   selfMessage: {
-    color: '#d1d5db', // gray-300
+    color: '#6b7280', // gray-500
   },
 });

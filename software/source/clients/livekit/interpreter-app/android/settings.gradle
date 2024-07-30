@@ -1,4 +1,4 @@
-rootProject.name = 'interpreter-app'
+rootProject.name = 'Interpreter'
 
 dependencyResolutionManagement {
   versionCatalogs {

@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "interpreterapp.app"
-               BlueprintName = "interpreterapp"
-               ReferencedContainer = "container:interpreterapp.xcodeproj">
+               BuildableName = "Interpreter.app"
+               BlueprintName = "Interpreter"
+               ReferencedContainer = "container:Interpreter.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "interpreterappTests.xctest"
-               BlueprintName = "interpreterappTests"
-               ReferencedContainer = "container:interpreterapp.xcodeproj">
+               BuildableName = "InterpreterTests.xctest"
+               BlueprintName = "InterpreterTests"
+               ReferencedContainer = "container:Interpreter.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "interpreterapp.app"
-            BlueprintName = "interpreterapp"
-            ReferencedContainer = "container:interpreterapp.xcodeproj">
+            BuildableName = "Interpreter.app"
+            BlueprintName = "Interpreter"
+            ReferencedContainer = "container:Interpreter.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "interpreterapp.app"
-            BlueprintName = "interpreterapp"
-            ReferencedContainer = "container:interpreterapp.xcodeproj">
+            BuildableName = "Interpreter.app"
+            BlueprintName = "Interpreter"
+            ReferencedContainer = "container:Interpreter.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

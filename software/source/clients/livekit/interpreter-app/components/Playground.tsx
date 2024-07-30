@@ -26,6 +26,7 @@ import {
   RoomEvent,
   Track,
 } from "livekit-client";
+import TypeformEmbed from "./Typeform";
 
 // Custom hook for responsive dimensions
 const useResponsiveDimensions = () => {
@@ -46,7 +47,7 @@ const useResponsiveDimensions = () => {
 
 
 export default function Playground() {
-  const { width, height, isLargeScreen } = useResponsiveDimensions();
+  const { isLargeScreen } = useResponsiveDimensions();
   const { config } = useConfig();
   const { localParticipant } = useLocalParticipant();
   const [isMuted, setIsMuted] = useState(true);
@@ -59,7 +60,7 @@ export default function Playground() {
   const tracks = useTracks();
 
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
-  const [transcripts, setTranscripts] = useState<ChatMessageType[]>([]);
+  const [transcripts, setTranscripts] = useState<Map<string, ChatMessageType>>(new Map());
 
   const responsiveStyles = useMemo(() => {
     return StyleSheet.create({
@@ -124,21 +125,25 @@ export default function Playground() {
         if ("timestamp" in decoded && decoded.timestamp > 0) {
           timestamp = decoded.timestamp;
         }
-        setTranscripts([
-          ...transcripts,
-          {
+        setTranscripts(prevTranscripts => {
+          const newTranscripts = new Map(prevTranscripts);
+          const id = `local-${timestamp}`; // Create a unique ID for this transcript
+          newTranscripts.set(id, {
             name: "You",
             message: decoded.text,
             timestamp: timestamp,
             isSelf: true,
-          },
-        ]);
+          });
+          return newTranscripts;
+        });
       }
     },
-    [transcripts]
+    []
   );
 
   useDataChannel(onDataReceived);
+
+  const isSpeaking = subscribedVolumes.some(value => value > 0.1);
 
   const audioTileContent = useMemo(() => {
     const DisconnectedContent = () => (
@@ -157,14 +162,14 @@ export default function Playground() {
     const VisualizerContent = () => (
       <View style={styles.centeredContent}>
         <AgentMultibandAudioVisualizer
-          state="speaking"
-          barWidth={45}
-          minBarHeight={30}
-          maxBarHeight={300}
+          state={isSpeaking ? 'speaking' : 'idle'}
+          barWidth={10}
+          minBarHeight={20}
+          maxBarHeight={100}
           accentColor={"#00FFFF"}
           frequencies={subscribedVolumes}
-          borderRadius={20}
-          gap={20}
+          borderRadius={5}
+          gap={5}
         />
       </View>
     );
@@ -182,6 +187,7 @@ export default function Playground() {
     agentAudioTrack,
     subscribedVolumes,
     roomState,
+    isSpeaking
   ]);
 
   const chatTileContent = useMemo(() => {
@@ -190,11 +196,15 @@ export default function Playground() {
         <TranscriptionTile
           agentAudioTrack={agentAudioTrack}
           accentColor={'#111827'}
+          transcripts={transcripts}
+          setTranscripts={setTranscripts}
+          messages={messages}
+          setMessages={setMessages}
         />
       );
     }
     return <></>;
-  }, [agentAudioTrack]);
+  }, [agentAudioTrack, transcripts, messages]);
 
   let mobileTabs: PlaygroundTab[] = [];
 
@@ -218,6 +228,15 @@ export default function Playground() {
       content: chatTileContent,
     });
   }
+
+  mobileTabs.push({
+    title: "Contact",
+    content: (
+      <View style={styles.typeformContainer}>
+        <TypeformEmbed />
+      </View>
+    ),
+  });
 
   const unmute = () => {
     if (localParticipant) {
@@ -271,6 +290,9 @@ export default function Playground() {
           </PlaygroundTile>
         </View>
       )}
+      <View style={[styles.contactContainer, responsiveStyles.desktopView]}>
+        <TypeformEmbed />
+      </View>
       <TouchableOpacity
         onPressIn={unmute}
         onPressOut={mute}
@@ -335,6 +357,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   chatTile: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  typeformContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  contactContainer: {
     flex: 1,
     width: '100%',
     height: '100%',

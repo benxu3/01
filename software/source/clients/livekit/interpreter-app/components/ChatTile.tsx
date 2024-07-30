@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef} from 'react';
 import { View, ScrollView, StyleSheet, Dimensions } from 'react-native';
 import { ChatMessage } from './ChatMessage';
 import { ChatMessageInput } from './ChatMessageInput';
