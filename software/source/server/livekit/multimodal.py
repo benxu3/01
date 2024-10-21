@@ -11,6 +11,7 @@ from livekit.agents.multimodal import MultimodalAgent
 from livekit.plugins import openai
 from dotenv import load_dotenv
 import os
+from .assistant_functions import AssistantFnc
 
 load_dotenv()
 
@@ -18,6 +19,7 @@ async def entrypoint(ctx: JobContext):
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     participant = await ctx.wait_for_participant()
+    fnc_ctx = AssistantFnc()
 
     openai_api_key = os.getenv("OPENAI_API_KEY")
     model = openai.realtime.RealtimeModel(
@@ -28,7 +30,7 @@ async def entrypoint(ctx: JobContext):
         api_key=openai_api_key,
         base_url="wss://api.openai.com/v1",
     )
-    assistant = MultimodalAgent(model=model)
+    assistant = MultimodalAgent(model=model, fnc_ctx=fnc_ctx)
     assistant.start(ctx.room)
 
     session = model.sessions[0]
