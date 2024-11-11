@@ -161,7 +161,8 @@ def run(
         if server == "livekit":
 
             ### LIVEKIT SERVER
-
+            url = "wss://oi-3vgs3xsr.livekit.cloud"
+            """
             def run_command(command):
                 subprocess.run(command, shell=True, check=True)
 
@@ -173,18 +174,46 @@ def run(
             livekit_thread = threading.Thread(
                 target=run_command, args=(command,)
             )
-            time.sleep(7)
+            
             livekit_thread.start()
             threads.append(livekit_thread)
+            time.sleep(7)
 
-            local_livekit_url = f"ws://{server_host}:{server_port}"
+            local_livekit_url = f"http://{server_host}:{server_port}"
+            """
 
         if expose:
-
+            if server == "livekit":
+                print("Livekit server will run at:", url)
+        """
             ### EXPOSE OVER INTERNET
             listener = ngrok.forward(f"{server_host}:{server_port}", authtoken_from_env=True, domain=domain)
             url = listener.url()
 
+            ### EXPOSE OVER INTERNET
+            try:
+                # Add debug logging
+                print(f"Attempting to establish ngrok tunnel for {server_host}:{server_port}")
+                
+                # Verify authtoken is set
+                if not os.getenv('NGROK_AUTHTOKEN'):
+                    raise ValueError("NGROK_AUTHTOKEN environment variable is not set")
+                    
+                listener = ngrok.forward(
+                    f"{server_host}:{server_port}", 
+                    authtoken_from_env=True,
+                    domain=domain
+                )
+                url = listener.url()
+                print(f"Successfully established ngrok tunnel at: {url}")
+            except Exception as e:
+                print(f"Failed to establish ngrok tunnel: {str(e)}")
+                print("Please ensure:")
+                print("1. NGROK_AUTHTOKEN environment variable is set")
+                print("2. You have internet connectivity")
+                print("3. Port {server_port} is not already in use")
+                raise
+                
         else:
 
             ### GET LOCAL URL
@@ -194,10 +223,10 @@ def run(
             s.close()
             url = f"http://{ip_address}:{server_port}"
 
-
+        
         if server == "livekit":
             print("Livekit server will run at:", url)
-
+        """
 
     ### CLIENT
 
@@ -230,9 +259,9 @@ def run(
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-
         # Verify the server is running
-        for attempt in range(10):
+        """
+        for _ in range(10):
             try:
                 response = requests.get(url)
                 status = "OK" if response.status_code == 200 else "Not OK"
@@ -243,12 +272,26 @@ def run(
             time.sleep(1)
         else:
             raise Exception(f"Server at {url} failed to respond after 10 attempts")
-
+        """
+        
         ### DISPLAY QR CODE
         if qr:
+            token = str(api.AccessToken('API6bznW3sgSYJL', '5zvf9OuyrTQi5fZX7Snr9ykkihuUqWfJoWJxA1EyRC7B') \
+                .with_identity("You") \
+                .with_name("You") \
+                .with_grants(api.VideoGrants(
+                    room_join=True,
+                    room="my-room",
+                    
+            )).to_jwt())
+
+            print("\n TOKEN TO JOIN THE ROOM IS ", token)
+
             def display_qr_code():
                 time.sleep(10)
-                content = json.dumps({"livekit_server": url})
+                content = json.dumps({
+                    "livekit_server": url
+                })
                 qr_code = segno.make(content)
                 qr_code.terminal(compact=True)
 
@@ -265,25 +308,19 @@ def run(
             os.environ['01_TTS'] = interpreter.tts
             os.environ['01_STT'] = interpreter.stt
 
-            token = str(api.AccessToken('devkey', 'secret') \
-                .with_identity("identity") \
-                .with_name("my name") \
-                .with_grants(api.VideoGrants(
-                    room_join=True,
-                    room="my-room",
-            )).to_jwt())
-
+            """
             meet_url = f'https://meet.livekit.io/custom?liveKitUrl={url.replace("http", "ws")}&token={token}\n\n'
             print("\n")
             print("For debugging, you can join a video call with your assistant. Click the link below, then send a chat message that says {CONTEXT_MODE_OFF}, then begin speaking:")
             print(meet_url)
+            """
 
             for attempt in range(30):
                 try:
                     if multimodal:
-                        multimodal_main(local_livekit_url)
+                        multimodal_main(url)
                     else:
-                        worker_main(local_livekit_url)
+                        worker_main(url)
                 except KeyboardInterrupt:
                     print("Exiting.")
                     raise

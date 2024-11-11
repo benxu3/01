@@ -145,9 +145,9 @@ async def entrypoint(ctx: JobContext):
             video_frame = await remote_video_processor.get_current_frame()
             log_message("OK got video frame: " + str(video_frame))
 
-        if video_frame:
-            chat_ctx.append(role="user", images=[ChatImage(video_frame)])
-            log_message("OK appended video frame to chat_ctx")
+            if video_frame:
+                chat_ctx.append(role="user", images=[ChatImage(video_frame)])
+                log_message("OK appended video frame to chat_ctx")
             
         return agent.llm.chat(
             chat_ctx=chat_ctx,
@@ -167,17 +167,25 @@ async def entrypoint(ctx: JobContext):
     chat = rtc.ChatManager(ctx.room)
 
     async def _answer_from_text(text: str):
-        chat_ctx = copy.deepcopy(assistant._chat_ctx)
-        chat_ctx.messages.append(ChatMessage(role="user", content=text))
+        chat_ctx = assistant.chat_ctx.copy()
 
-        stream = open_interpreter.chat(chat_ctx=chat_ctx)
+        if remote_video_processor:
+            log_message("OK remote_video_processor is not None -- getting current frame")
+            video_frame = await remote_video_processor.get_current_frame()
+            log_message("OK got video frame: " + str(video_frame))
+
+            if video_frame:
+                chat_ctx.append(role="user", images=[ChatImage(video_frame)])
+                log_message("OK appended video frame to chat_ctx")
+
+        chat_ctx.append(role="user", text=text)
+        stream = assistant.llm.chat(chat_ctx=chat_ctx)
         await assistant.say(stream)
 
     @chat.on("message_received")
     def on_chat_received(msg: rtc.ChatMessage):
-        if not msg.message:
-            return
-        asyncio.create_task(_answer_from_text(msg.message))
+        if msg.message:
+            asyncio.create_task(_answer_from_text(msg.message))
 
     # Start the voice assistant with the LiveKit room
     assistant.start(ctx.room)
