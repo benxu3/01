@@ -5,18 +5,19 @@ from livekit.agents import JobContext, WorkerOptions, cli
 from livekit.agents.transcription import STTSegmentsForwarder
 from livekit.agents.llm import ChatContext, ChatMessage
 from livekit import rtc
-from livekit.agents import stt, transcription
+from livekit.agents import stt, transcription, tokenize
 from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import deepgram, openai, silero, elevenlabs
 from dotenv import load_dotenv
 import sys
 import numpy as np
-from .text_processor import ProcessedLLMStream
 from livekit.agents.llm.chat_context import ChatContext, ChatImage
 from livekit.agents.llm import LLMStream
-from .video_processor import RemoteVideoProcessor
+from source.server.livekit.video_processor import RemoteVideoProcessor
 from datetime import datetime
 from typing import AsyncIterable
+
+from livekit import api
 
 
 load_dotenv()
@@ -96,12 +97,12 @@ async def entrypoint(ctx: JobContext):
     # See https://github.com/livekit/agents/blob/main/livekit-agents/livekit/agents/voice_assistant/assistant.py
     # for details on how it works.
 
-    interpreter_server_host = os.getenv('INTERPRETER_SERVER_HOST', 'localhost')
-    interpreter_server_port = os.getenv('INTERPRETER_SERVER_PORT', '8000')
-    base_url = f"http://{interpreter_server_host}:{interpreter_server_port}/openai"
+    # interpreter_server_host = os.getenv('INTERPRETER_SERVER_HOST', 'localhost')
+    # interpreter_server_port = os.getenv('INTERPRETER_SERVER_PORT', '8000')
+    # base_url = f"http://{interpreter_server_host}:{interpreter_server_port}/openai"
 
     # For debugging
-    # base_url = "http://127.0.0.1:8000/openai"
+    base_url = "http://127.0.0.1:8000/v1/"
 
     open_interpreter = openai.LLM(
         model="open-interpreter", base_url=base_url, api_key="x"
@@ -109,6 +110,8 @@ async def entrypoint(ctx: JobContext):
 
     tts_provider = os.getenv('01_TTS', '').lower()
     stt_provider = os.getenv('01_STT', '').lower()
+    tts_provider='elevenlabs'
+    stt_provider='deepgram'
 
     # Add plugins here
     if tts_provider == 'openai':
@@ -129,9 +132,55 @@ async def entrypoint(ctx: JobContext):
         agent: VoicePipelineAgent,
         text: str | AsyncIterable[str]
     ) -> str | AsyncIterable[str]:
-        log_message(f"before_tts_cb received: {text}")
-        return text
-    
+        if isinstance(text, str):
+            log_message(f"before_tts_cb received string: {text}")
+            return text
+            
+        async def process_stream():
+            code_buffer = ""
+            in_code_block = False
+            
+            async for chunk in text:
+                log_message(f"[CHUNK START] Processing chunk: {chunk}")
+                
+                # Start of code block
+                if chunk.strip().startswith("```") and not in_code_block:
+                    log_message(f"[CODE BLOCK] Found start of code block")
+                    in_code_block = True
+                    code_buffer = ""
+                    continue
+                
+                # End of code block    
+                elif "```" in chunk and in_code_block:
+                    log_message(f"[CODE BLOCK] Found end of code block")
+                    if code_buffer:
+                        log_message(f"[PUBLISHING] Code buffer: {code_buffer}")
+                        await ctx.room.local_participant.publish_data(
+                            code_buffer.encode(), 
+                            reliable=True,
+                            topic="code"
+                        )
+                    in_code_block = False
+                    log_message("[SKIP] Skipping yield for code block chunk")
+
+                    await ctx.room.local_participant.publish_data(
+                        "{CLEAR}".encode(),
+                        reliable=True,
+                        topic="code"
+                    )
+
+                    continue
+                    
+                # If we're in a code block, add to buffer
+                if in_code_block:
+                    code_buffer += chunk
+                    log_message(f"[CODE BUFFER] Added to buffer: {chunk}")
+                else:
+                    # If we're not in a code block, yield the chunk
+                    log_message(f"[YIELD] Yielding non-code chunk: {chunk}")
+                    yield chunk
+        
+        return process_stream()
 
     async def _01_before_llm_cb(
         agent: VoicePipelineAgent, 
@@ -232,7 +281,7 @@ async def entrypoint(ctx: JobContext):
             asyncio.create_task(remote_video_processor.process_frames())
 
 
-def main(livekit_url):
+if __name__ == "__main__":
     # Workers have to be run as CLIs right now.
     # So we need to simualte running "[this file] dev"
 
@@ -240,6 +289,17 @@ def main(livekit_url):
     # and 'dev' as the second argument
     sys.argv = [str(__file__), 'dev']
 
+    token = str(api.AccessToken('devkey', 'secret') \
+                .with_identity("You") \
+                .with_name("You") \
+                .with_grants(api.VideoGrants(
+                    room_join=True,
+                    room="my-room",
+            )).to_jwt())
+    
+    print(token)
+
+    livekit_url = "ws://localhost:7880"
     # Initialize the worker with the entrypoint
     cli.run_app(
         WorkerOptions(entrypoint_fnc=entrypoint, api_key="devkey", api_secret="secret", ws_url=livekit_url)
