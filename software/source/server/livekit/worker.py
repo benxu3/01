@@ -194,70 +194,53 @@ async def entrypoint(ctx: JobContext):
         agent: VoicePipelineAgent, 
         chat_ctx: ChatContext
     ) -> Awaitable[LLMStream] | Literal[False]:
-        nonlocal accumulated_messages
-        nonlocal require_start 
+        # Get the last message
+        if not chat_ctx.messages:
+            log_message("[before_llm_cb] No messages in context")
+            return False
+        
+        last_message = chat_ctx.messages[-1]
+        if not isinstance(last_message.content, str):
+            log_message("[before_llm_cb] Last message is not text, skipping")
+            return False
 
-        # Add debug logging
-        print("before_llm_cb called")
-        print("require_start: " + str(require_start ))
-        print("message_count: " + str(len(chat_ctx.messages) if chat_ctx.messages else 0))
+        content = last_message.content.strip()
+        log_message(f"[before_llm_cb] Processing message: '{content}'")
+        
+        # Handle special commands
+        if content in ["{REQUIRE_START_ON}", "{REQUIRE_START_OFF}", "{STOP}"]:
+            log_message(f"[before_llm_cb] Received control command: {content}")
+            return False
+        
+        # In non-VAD mode (require_start=True), we accumulate messages until {COMPLETE}
+        if require_start and content != "{COMPLETE}":
+            # Store message for later processing
+            log_message(f"[before_llm_cb] NON-VAD MODE: Accumulating message: '{content}'")
+            accumulated_messages.append(last_message)
+            log_message(f"[before_llm_cb] Total accumulated messages: {len(accumulated_messages)}")
+            return False
 
-        if chat_ctx.messages:
-            last_message = chat_ctx.messages[-1]
-            if isinstance(last_message.content, str):
-                content = last_message.content.strip()
-                
-                if content == "{REQUIRE_START_ON}":
-                    require_start = True
-                    accumulated_messages = []
-                    print("OK blocking LLM call - starting message accumulation")
-                    return False
-                
-                elif content == "{REQUIRE_START_OFF}":
-                    require_start = False
-                    accumulated_messages = []
-                    print("OK cleared accumulated messages")
-                    return False
-                
-                elif content == "{STOP}":
-                    print("OK blocking LLM call")
-                    return False
-                
-                elif require_start:
-                    print(f"DEBUG: In require_start block with content: '{content}'")
-
-                    if content == "{START}":
-                        print(f"DEBUG: Found START command!")
-
-                        print(f"OK processing {len(accumulated_messages)} accumulated messages")
-                        # Add accumulated messages to copied_ctx
-                        for msg in accumulated_messages:
-                            print(f"DEBUG: Inserting message: {msg.content}")
-                            chat_ctx.messages.insert(-1, msg)  # Insert before the {START} message
-                        accumulated_messages = []
-                    else:
-                        # Store message for later
-                        accumulated_messages.append(last_message)
-                        print(f"OK blocking LLM call - message added to accumulation (total: {len(accumulated_messages)})")
-                        return False
-
-        # If we get here, return async function that handles video + LLM
-        print("DEBUG: Proceeding with video + LLM")
-
-        async def process_video_and_chat():
+        # For VAD mode or when {COMPLETE} is received, process the query
+        log_message(f"[before_llm_cb] {'VAD' if not require_start else 'COMPLETE'} MODE: Processing query")
+        
+        async def process_query():
+            # Add video frame if available
             if remote_video_processor:
+                log_message("[before_llm_cb] Attempting to get video frame")
                 video_frame = await remote_video_processor.get_current_frame()
                 if video_frame:
                     chat_ctx.append(role="user", images=[ChatImage(video_frame)])
-                    log_message("added video frame to context")
+                    log_message("[before_llm_cb] Successfully added video frame to context")
+                else:
+                    log_message("[before_llm_cb] No video frame available")
             
+            log_message(f"[before_llm_cb] Generating LLM response with {len(chat_ctx.messages)} messages in context")
             return agent.llm.chat(
                 chat_ctx=chat_ctx,
                 fnc_ctx=agent.fnc_ctx,
             )
 
-        return process_video_and_chat()
-        
+        return process_query()
 
     assistant = VoicePipelineAgent(
         vad=silero.VAD.load(),
@@ -272,62 +255,41 @@ async def entrypoint(ctx: JobContext):
     chat = rtc.ChatManager(ctx.room)
 
     async def _answer_from_text(text: str):
-        nonlocal accumulated_messages
-        global _last_start_time
+        log_message(f"[answer_from_text] Received text message: '{text}'")
         
-        if text == "{START}":
-            # Debounce START commands
-            current_time = time()
-            if current_time - _last_start_time < START_DEBOUNCE_SECONDS:
-                print(f"[START] Ignoring - too soon after last START")
-                return
-            _last_start_time = current_time
-        
-            if not accumulated_messages:
-                print("[START] No messages to process")
-                return
-                
-            print(f"[START] Processing {len(accumulated_messages)} accumulated messages")
-            chat_ctx = assistant.chat_ctx.copy()
-            print(f"[START] Initial chat context has {len(chat_ctx.messages)} messages")
-            
-            # Add all accumulated messages
-            for msg in accumulated_messages:
-                print(f"[START] Adding message: {msg.content}")
-                if isinstance(msg.content, str):
-                    chat_ctx.append(role="user", text=msg.content)
-                elif isinstance(msg.content, ChatImage):
-                    chat_ctx.append(role="user", images=[msg.content])
-            
-            # Generate response
-            stream = assistant.llm.chat(chat_ctx=chat_ctx)
-            await assistant.say(stream)
-            
-            accumulated_messages = []
-            print("[START] Complete")
-            return
-
-        elif require_start:
-            # Store message for later
-            msg = ChatMessage(role="user", content=text)
-            accumulated_messages.append(msg)
-            print(f"[ACCUMULATE] Added message: '{text}' (total: {len(accumulated_messages)})")
-            print(f"[ACCUMULATE] Current messages: {[m.content for m in accumulated_messages]}")
-            return
-
-
+        # Always append the message to chat context
         chat_ctx = assistant.chat_ctx.copy()
+        log_message(f"[answer_from_text] Created chat context copy with {len(chat_ctx.messages)} messages")
+        
+        # If this is a START/COMPLETE command and we have accumulated messages, add them to context
+        if text in ["{START}", "{COMPLETE}"] and accumulated_messages:
+            log_message(f"[answer_from_text] Adding {len(accumulated_messages)} accumulated messages to context")
+            for msg in accumulated_messages:
+                if isinstance(msg.content, str):
+                    chat_ctx.append(role=msg.role, text=msg.content)
+                    log_message(f"[answer_from_text] Added accumulated message: {msg.content}")
+            # Clear accumulated messages after adding them
+            accumulated_messages.clear()
+            log_message("[answer_from_text] Cleared accumulated messages buffer")
+        
+        # Add video frame if available
         if remote_video_processor:
-            log_message("OK remote_video_processor is not None -- getting current frame")
+            log_message("[answer_from_text] Attempting to get video frame")
             video_frame = await remote_video_processor.get_current_frame()
-            log_message("OK got video frame: " + str(video_frame))
-
             if video_frame:
                 chat_ctx.append(role="user", images=[ChatImage(video_frame)])
-                log_message("OK appended video frame to chat_ctx")
-
+                log_message("[answer_from_text] Successfully added video frame to context")
+            else:
+                log_message("[answer_from_text] No video frame available")
+        
+        # Append the current text message
         chat_ctx.append(role="user", text=text)
+        log_message(f"[answer_from_text] Added text message to context. Total messages: {len(chat_ctx.messages)}")
+        
+        # Generate and play response
+        log_message("[answer_from_text] Generating LLM response")
         stream = assistant.llm.chat(chat_ctx=chat_ctx)
+        log_message("[answer_from_text] Playing response through assistant")
         await assistant.say(stream)
 
     @chat.on("message_received")
@@ -375,7 +337,7 @@ async def entrypoint(ctx: JobContext):
         if track.kind == rtc.TrackKind.KIND_VIDEO:
             nonlocal remote_video_processor
 
-            remote_video_stream = rtc.VideoStream(track=track)
+            remote_video_stream = rtc.VideoStream(track=track, format=rtc.VideoBufferType.RGBA)
             remote_video_processor = RemoteVideoProcessor(video_stream=remote_video_stream, job_ctx=ctx)
             log_message("remote video processor." + str(remote_video_processor))
             asyncio.create_task(remote_video_processor.process_frames())

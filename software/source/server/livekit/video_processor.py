@@ -35,6 +35,7 @@ class RemoteVideoProcessor:
                 rotation = frame_event.rotation
 
                 # Store the current frame safely
+                log_message(f"Received frame: width={video_frame.width}, height={video_frame.height}, type={video_frame.type}")
                 async with self.lock:
                     self.current_frame = video_frame
 
