@@ -194,6 +194,7 @@ async def entrypoint(ctx: JobContext):
         agent: VoicePipelineAgent, 
         chat_ctx: ChatContext
     ) -> Awaitable[LLMStream] | Literal[False]:
+        nonlocal require_start
         # Get the last message
         if not chat_ctx.messages:
             log_message("[before_llm_cb] No messages in context")
@@ -210,6 +211,11 @@ async def entrypoint(ctx: JobContext):
         # Handle special commands
         if content in ["{REQUIRE_START_ON}", "{REQUIRE_START_OFF}", "{STOP}"]:
             log_message(f"[before_llm_cb] Received control command: {content}")
+            if content == "{REQUIRE_START_ON}":
+                require_start = True
+            elif content == "{REQUIRE_START_OFF}":
+                require_start = False
+                log_message("[before_llm_cb] Require start is now OFF")
             return False
         
         # In non-VAD mode (require_start=True), we accumulate messages until {COMPLETE}
@@ -262,7 +268,7 @@ async def entrypoint(ctx: JobContext):
         log_message(f"[answer_from_text] Created chat context copy with {len(chat_ctx.messages)} messages")
         
         # If this is a START/COMPLETE command and we have accumulated messages, add them to context
-        if text in ["{START}", "{COMPLETE}"] and accumulated_messages:
+        if text in ["{COMPLETE}"] and accumulated_messages:
             log_message(f"[answer_from_text] Adding {len(accumulated_messages)} accumulated messages to context")
             for msg in accumulated_messages:
                 if isinstance(msg.content, str):
@@ -343,7 +349,7 @@ async def entrypoint(ctx: JobContext):
             asyncio.create_task(remote_video_processor.process_frames())
 
 
-if __name__ == "__main__":
+def main(livekit_url: str):
     # Workers have to be run as CLIs right now.
     # So we need to simualte running "[this file] dev"
 
@@ -361,7 +367,7 @@ if __name__ == "__main__":
     
     print(token)
 
-    livekit_url = "ws://localhost:7880"
+    # livekit_url = "ws://localhost:7880"
     # Initialize the worker with the entrypoint
     cli.run_app(
         WorkerOptions(entrypoint_fnc=entrypoint, api_key="devkey", api_secret="secret", ws_url=livekit_url)
