@@ -1,7 +1,8 @@
 import asyncio
 import copy
 import os
-from livekit.agents import JobContext, WorkerOptions, cli
+import aiohttp
+from livekit.agents import JobContext, WorkerOptions, cli, llm
 from livekit.agents.transcription import STTSegmentsForwarder
 from livekit.agents.llm import ChatContext, ChatMessage
 from livekit import rtc
@@ -15,9 +16,8 @@ from livekit.agents.llm.chat_context import ChatContext, ChatImage
 from livekit.agents.llm import LLMStream
 from source.server.livekit.video_processor import RemoteVideoProcessor
 from datetime import datetime
-from typing import AsyncIterable, Literal, Awaitable
+from typing import AsyncIterable, Literal, Awaitable, Annotated
 from time import time
-
 from livekit import api
 
 
@@ -60,7 +60,7 @@ async def entrypoint(ctx: JobContext):
     initial_ctx = ChatContext().append(
         role="system",
         text=(
-            "" # Open Interpreter handles this.
+            "Only take into context the user's image if their message is relevant or pertaining to the image. Otherwise just keep in context that the image is present but do not acknowledge or mention it in your response." # Open Interpreter handles this.
         ),
     )
 
@@ -107,7 +107,7 @@ async def entrypoint(ctx: JobContext):
     # base_url = f"http://{interpreter_server_host}:{interpreter_server_port}/openai"
 
     # For debugging
-    base_url = "http://127.0.0.1:8000/v1/"
+    base_url = "http://127.0.0.1:8000/"
 
     open_interpreter = openai.LLM(
         model="open-interpreter", base_url=base_url, api_key="x"
@@ -133,60 +133,6 @@ async def entrypoint(ctx: JobContext):
     else:
         raise ValueError(f"Unsupported STT provider: {stt_provider}. Please set 01_STT environment variable to 'deepgram'.")
     
-    def _01_before_tts_cb(
-        agent: VoicePipelineAgent,
-        text: str | AsyncIterable[str]
-    ) -> str | AsyncIterable[str]:
-        if isinstance(text, str):
-            log_message(f"before_tts_cb received string: {text}")
-            return text
-            
-        async def process_stream():
-            code_buffer = ""
-            in_code_block = False
-            
-            async for chunk in text:
-                log_message(f"[CHUNK START] Processing chunk: {chunk}")
-                
-                # Start of code block
-                if chunk.strip().startswith("```") and not in_code_block:
-                    log_message(f"[CODE BLOCK] Found start of code block")
-                    in_code_block = True
-                    code_buffer = ""
-                    continue
-                
-                # End of code block    
-                elif "```" in chunk and in_code_block:
-                    log_message(f"[CODE BLOCK] Found end of code block")
-                    if code_buffer:
-                        log_message(f"[PUBLISHING] Code buffer: {code_buffer}")
-                        await ctx.room.local_participant.publish_data(
-                            code_buffer.encode(), 
-                            reliable=True,
-                            topic="code"
-                        )
-                    in_code_block = False
-                    log_message("[SKIP] Skipping yield for code block chunk")
-
-                    await ctx.room.local_participant.publish_data(
-                        "{CLEAR}".encode(),
-                        reliable=True,
-                        topic="code"
-                    )
-
-                    continue
-                    
-                # If we're in a code block, add to buffer
-                if in_code_block:
-                    code_buffer += chunk
-                    log_message(f"[CODE BUFFER] Added to buffer: {chunk}")
-                else:
-                    # If we're not in a code block, yield the chunk
-                    log_message(f"[YIELD] Yielding non-code chunk: {chunk}")
-                    yield chunk
-        
-        return process_stream()
-    
     require_start = True
     accumulated_messages: list[ChatMessage] = []
 
@@ -195,6 +141,8 @@ async def entrypoint(ctx: JobContext):
         chat_ctx: ChatContext
     ) -> Awaitable[LLMStream] | Literal[False]:
         nonlocal require_start
+        nonlocal accumulated_messages
+
         # Get the last message
         if not chat_ctx.messages:
             log_message("[before_llm_cb] No messages in context")
@@ -207,47 +155,36 @@ async def entrypoint(ctx: JobContext):
 
         content = last_message.content.strip()
         log_message(f"[before_llm_cb] Processing message: '{content}'")
-        
-        # Handle special commands
-        if content in ["{REQUIRE_START_ON}", "{REQUIRE_START_OFF}", "{STOP}"]:
-            log_message(f"[before_llm_cb] Received control command: {content}")
-            if content == "{REQUIRE_START_ON}":
-                require_start = True
-            elif content == "{REQUIRE_START_OFF}":
-                require_start = False
-                log_message("[before_llm_cb] Require start is now OFF")
-            return False
-        
-        # In non-VAD mode (require_start=True), we accumulate messages until {COMPLETE}
-        if require_start and content != "{COMPLETE}":
-            # Store message for later processing
-            log_message(f"[before_llm_cb] NON-VAD MODE: Accumulating message: '{content}'")
+
+          # In non-VAD mode, we accumulate messages and do not trigger LLM response
+        if require_start:
+            # Non-VAD mode
+            log_message("[before_llm_cb] Non-VAD mode, accumulating message and returning False")
             accumulated_messages.append(last_message)
             log_message(f"[before_llm_cb] Total accumulated messages: {len(accumulated_messages)}")
             return False
-
-        # For VAD mode or when {COMPLETE} is received, process the query
-        log_message(f"[before_llm_cb] {'VAD' if not require_start else 'COMPLETE'} MODE: Processing query")
-        
-        async def process_query():
-            # Add video frame if available
-            if remote_video_processor:
-                log_message("[before_llm_cb] Attempting to get video frame")
-                video_frame = await remote_video_processor.get_current_frame()
-                if video_frame:
-                    chat_ctx.append(role="user", images=[ChatImage(video_frame)])
-                    log_message("[before_llm_cb] Successfully added video frame to context")
-                else:
-                    log_message("[before_llm_cb] No video frame available")
-            
-            log_message(f"[before_llm_cb] Generating LLM response with {len(chat_ctx.messages)} messages in context")
-            return agent.llm.chat(
-                chat_ctx=chat_ctx,
-                fnc_ctx=agent.fnc_ctx,
-            )
+        else:
+            # VAD mode, process the message immediately
+            log_message("[before_llm_cb] VAD mode, processing message")
+            async def process_query():
+                # Add video frame if available
+                if remote_video_processor:
+                    log_message("[before_llm_cb] Attempting to get video frame")
+                    video_frame = await remote_video_processor.get_current_frame()
+                    if video_frame:
+                        chat_ctx.append(role="user", images=[ChatImage(video_frame)])
+                        log_message("[before_llm_cb] Successfully added video frame to context")
+                    else:
+                        log_message("[before_llm_cb] No video frame available")
+                
+                log_message(f"[before_llm_cb] Generating LLM response with {len(chat_ctx.messages)} messages in context")
+                return agent.llm.chat(
+                    chat_ctx=chat_ctx,
+                    fnc_ctx=agent.fnc_ctx,
+                )
 
         return process_query()
-
+    
     assistant = VoicePipelineAgent(
         vad=silero.VAD.load(),
         stt=stt,
@@ -255,48 +192,106 @@ async def entrypoint(ctx: JobContext):
         tts=tts,
         chat_ctx=initial_ctx,
         before_llm_cb=_01_before_llm_cb,
-        before_tts_cb=_01_before_tts_cb,
     )
 
     chat = rtc.ChatManager(ctx.room)
 
     async def _answer_from_text(text: str):
+        nonlocal require_start
+        nonlocal accumulated_messages
+
         log_message(f"[answer_from_text] Received text message: '{text}'")
         
         # Always append the message to chat context
-        chat_ctx = assistant.chat_ctx.copy()
+        chat_ctx = assistant._chat_ctx.copy()
         log_message(f"[answer_from_text] Created chat context copy with {len(chat_ctx.messages)} messages")
         
-        # If this is a START/COMPLETE command and we have accumulated messages, add them to context
-        if text in ["{COMPLETE}"] and accumulated_messages:
-            log_message(f"[answer_from_text] Adding {len(accumulated_messages)} accumulated messages to context")
-            for msg in accumulated_messages:
-                if isinstance(msg.content, str):
-                    chat_ctx.append(role=msg.role, text=msg.content)
-                    log_message(f"[answer_from_text] Added accumulated message: {msg.content}")
-            # Clear accumulated messages after adding them
-            accumulated_messages.clear()
-            log_message("[answer_from_text] Cleared accumulated messages buffer")
+          # Handle special commands
+        if text in ["{REQUIRE_START_ON}", "{REQUIRE_START_OFF}"]:
+            log_message(f"[answer_from_text] Control command received: {text}")
+            nonlocal require_start
+            if text == "{REQUIRE_START_ON}":
+                require_start = True
+                log_message("[answer_from_text] Set require_start to True (non-VAD mode)")
+            elif text == "{REQUIRE_START_OFF}":
+                require_start = False
+                log_message("[answer_from_text] Set require_start to False (VAD mode)")
+            # Do not trigger assistant.say()
+            return
         
-        # Add video frame if available
-        if remote_video_processor:
-            log_message("[answer_from_text] Attempting to get video frame")
-            video_frame = await remote_video_processor.get_current_frame()
-            if video_frame:
-                chat_ctx.append(role="user", images=[ChatImage(video_frame)])
-                log_message("[answer_from_text] Successfully added video frame to context")
+        # If it's a {COMPLETE} flag in non-VAD mode
+        if text == "{COMPLETE}":
+            if require_start and accumulated_messages:
+                # Process accumulated messages
+                log_message(f"[answer_from_text] Processing accumulated messages")
+                for msg in accumulated_messages:
+                    if isinstance(msg.content, str):
+                        new_chat_message = ChatMessage(role=msg.role, content=msg.content)
+                        chat_ctx.messages.append(new_chat_message)
+                        log_message(f"[answer_from_text] Added accumulated message: {msg.content}")
+                accumulated_messages.clear()
+                log_message("[answer_from_text] Cleared accumulated messages buffer")
+                
+                # Add video frame if available
+                if remote_video_processor:
+                    log_message("[answer_from_text] Attempting to get video frame")
+                    video_frame = await remote_video_processor.get_current_frame()
+                    if video_frame:
+                        new_chat_message = ChatMessage(role="user", content=[ChatImage(video_frame)])
+                        chat_ctx.messages.append(new_chat_message)
+                        log_message("[answer_from_text] Successfully added video frame to context")
+                    else:
+                        log_message("[answer_from_text] No video frame available")
+                
+                # Generate and play response
+                log_message("[answer_from_text] Generating LLM response")
+                stream = assistant.llm.chat(chat_ctx=chat_ctx)
+                log_message("[answer_from_text] Playing response through assistant")
+                await assistant.say(stream)
+
+                # **Update the assistant's chat context**
+                assistant._chat_ctx = chat_ctx
+                log_message("[answer_from_text] Updated assistant.chat_ctx with new messages")
             else:
-                log_message("[answer_from_text] No video frame available")
-        
-        # Append the current text message
-        chat_ctx.append(role="user", text=text)
-        log_message(f"[answer_from_text] Added text message to context. Total messages: {len(chat_ctx.messages)}")
-        
-        # Generate and play response
-        log_message("[answer_from_text] Generating LLM response")
-        stream = assistant.llm.chat(chat_ctx=chat_ctx)
-        log_message("[answer_from_text] Playing response through assistant")
-        await assistant.say(stream)
+                log_message("[answer_from_text] No accumulated messages to process or not in non-VAD mode")
+            return
+
+        # For other messages
+        if require_start:
+            # Non-VAD mode, accumulate messages
+            log_message("[answer_from_text] Non-VAD mode, accumulating message")
+            accumulated_messages.append(ChatMessage(role="user", content=text))
+            log_message(f"[answer_from_text] Total accumulated messages: {len(accumulated_messages)}")
+            # Do not trigger assistant.say()
+            return
+        else:
+            # VAD mode, process message immediately
+            chat_ctx = assistant.chat_ctx.copy()
+            log_message("[answer_from_text] VAD mode, processing message immediately")
+
+            # Add video frame if available
+            if remote_video_processor:
+                log_message("[answer_from_text] Attempting to get video frame")
+                video_frame = await remote_video_processor.get_current_frame()
+                if video_frame:
+                    chat_ctx.append(role="user", images=[ChatImage(video_frame)])
+                    log_message("[answer_from_text] Successfully added video frame to context")
+                else:
+                    log_message("[answer_from_text] No video frame available")
+
+            # Append the current text message
+            chat_ctx.append(role="user", text=text)
+            log_message(f"[answer_from_text] Added text message to context. Total messages: {len(chat_ctx.messages)}")
+
+            # Generate and play response
+            log_message("[answer_from_text] Generating LLM response")
+            stream = assistant.llm.chat(chat_ctx=chat_ctx)
+            log_message("[answer_from_text] Playing response through assistant")
+            await assistant.say(stream)
+
+            assistant._chat_ctx = chat_ctx
+            log_message("[answer_from_text] Updated assistant.chat_ctx with new messages")
+            return
 
     @chat.on("message_received")
     def on_chat_received(msg: rtc.ChatMessage):
