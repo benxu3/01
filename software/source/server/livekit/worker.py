@@ -154,13 +154,18 @@ async def entrypoint(ctx: JobContext):
             return False
 
         content = last_message.content.strip()
+        log_message(f"[before_llm_cb] chat context messages: {chat_ctx.messages}")
         log_message(f"[before_llm_cb] Processing message: '{content}'")
+
+        for idx, msg in enumerate(chat_ctx.messages):
+            log_message(f"[ChatContext] Message {idx}: {msg.role} - {msg.content}")
 
           # In non-VAD mode, we accumulate messages and do not trigger LLM response
         if require_start:
             # Non-VAD mode
             log_message("[before_llm_cb] Non-VAD mode, accumulating message and returning False")
-            accumulated_messages.append(last_message)
+            new_chat_message = ChatMessage(role=last_message.role, content=last_message.content)
+            accumulated_messages.append(new_chat_message)
             log_message(f"[before_llm_cb] Total accumulated messages: {len(accumulated_messages)}")
             return False
         else:
@@ -224,6 +229,7 @@ async def entrypoint(ctx: JobContext):
             if require_start and accumulated_messages:
                 # Process accumulated messages
                 log_message(f"[answer_from_text] Processing accumulated messages")
+                log_message(f"accumulated_messages: {accumulated_messages}")
                 for msg in accumulated_messages:
                     if isinstance(msg.content, str):
                         new_chat_message = ChatMessage(role=msg.role, content=msg.content)
@@ -231,6 +237,7 @@ async def entrypoint(ctx: JobContext):
                         log_message(f"[answer_from_text] Added accumulated message: {msg.content}")
                 accumulated_messages.clear()
                 log_message("[answer_from_text] Cleared accumulated messages buffer")
+                log_message(f"{accumulated_messages} is now empty")
                 
                 # Add video frame if available
                 if remote_video_processor:
@@ -252,6 +259,7 @@ async def entrypoint(ctx: JobContext):
                 # **Update the assistant's chat context**
                 assistant._chat_ctx = chat_ctx
                 log_message("[answer_from_text] Updated assistant.chat_ctx with new messages")
+                log_message(f"[answer_from_text] assistant.chat_ctx: {assistant._chat_ctx}")
             else:
                 log_message("[answer_from_text] No accumulated messages to process or not in non-VAD mode")
             return
@@ -260,7 +268,8 @@ async def entrypoint(ctx: JobContext):
         if require_start:
             # Non-VAD mode, accumulate messages
             log_message("[answer_from_text] Non-VAD mode, accumulating message")
-            accumulated_messages.append(ChatMessage(role="user", content=text))
+            new_chat_message = ChatMessage(role="user", content=text)
+            accumulated_messages.append(new_chat_message)
             log_message(f"[answer_from_text] Total accumulated messages: {len(accumulated_messages)}")
             # Do not trigger assistant.say()
             return
@@ -274,13 +283,15 @@ async def entrypoint(ctx: JobContext):
                 log_message("[answer_from_text] Attempting to get video frame")
                 video_frame = await remote_video_processor.get_current_frame()
                 if video_frame:
-                    chat_ctx.append(role="user", images=[ChatImage(video_frame)])
+                    new_chat_message = ChatMessage(role="user", content=[ChatImage(video_frame)])
+                    chat_ctx.messages.append(new_chat_message)
                     log_message("[answer_from_text] Successfully added video frame to context")
                 else:
                     log_message("[answer_from_text] No video frame available")
 
             # Append the current text message
-            chat_ctx.append(role="user", text=text)
+            new_chat_message = ChatMessage(role="user", content=text)
+            chat_ctx.messages.append(new_chat_message)
             log_message(f"[answer_from_text] Added text message to context. Total messages: {len(chat_ctx.messages)}")
 
             # Generate and play response
