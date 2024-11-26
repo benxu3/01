@@ -123,8 +123,8 @@ async def entrypoint(ctx: JobContext):
     # initialize voice assistant states
     ############################################################
     push_to_talk = True
-    accumulated_messages: list[ChatMessage] = []
-    submitted_message: list[ChatMessage] = []
+    current_message: ChatMessage = ChatMessage(role='user')
+    submitted_message: ChatMessage = ChatMessage(role='user')
 
     tasks = []
     ############################################################
@@ -136,35 +136,36 @@ async def entrypoint(ctx: JobContext):
     ) -> Awaitable[LLMStream] | Literal[False]:
         nonlocal push_to_talk
         nonlocal remote_video_processor
-        nonlocal accumulated_messages
+        nonlocal current_message
         nonlocal submitted_message
-        log_message(f"[before_llm_cb] chat_ctx: {chat_ctx}")
+        log_message(f"[before_llm_cb] chat_ctx before we perform any processing: {chat_ctx}")
 
-        log_message(f"[before_llm_cb] accumulated messages before we check push_to_talk: {accumulated_messages}")
+
         if push_to_talk:
             last_message = chat_ctx.messages[-1]
-            accumulated_messages = [last_message]
-            log_message(f"[before_llm_cb] accumulated_messages after setting to last_message: {accumulated_messages}")
 
-            if submitted_message and isinstance(accumulated_messages[0].content, str) and isinstance(submitted_message[0].content, str):
+            if submitted_message and isinstance(last_message.content, str):
                 log_message(f"[before_llm_cb] submitted_message: {submitted_message}")
-                # Find where submitted_message ends in accumulated_messages
-                submitted_end_idx = 0 
-                submitted_message_str = submitted_message[0].content
-                accumulated_messages_str = accumulated_messages[0].content
 
-                while submitted_message_str[submitted_end_idx] == accumulated_messages_str[submitted_end_idx]:
+                # Find where submitted_messages ends in last_message
+                submitted_end_idx = 0 
+                while isinstance(submitted_message.content, str) and submitted_message.content[submitted_end_idx] == last_message.content[submitted_end_idx]:
                     submitted_end_idx += 1
-                    if submitted_end_idx == len(submitted_message_str):
+                    if submitted_end_idx == len(submitted_message.content):
                         break
                 
                 # Remove the submitted message from the accumulated messages
                 log_message(f"[before_llm_cb] submitted_end_idx: {submitted_end_idx}")
+
                 # Take messages after the submitted message
-                accumulated_messages = [ChatMessage(role=accumulated_messages[0].role, content=accumulated_messages[0].content[submitted_end_idx:])]
-                log_message(f"[before_llm_cb] accumulated_messages after removing submitted_message: {accumulated_messages}")
-                
-            return False  # Continue without invoking LLM immediately
+                current_message = ChatMessage(role=last_message.role, content=last_message.content[submitted_end_idx:])
+                log_message(f"[before_llm_cb] current_message after removing submitted_message: {current_message}")
+            else:
+                current_message = ChatMessage(role=last_message.role, content=last_message.content)
+                log_message(f"[before_llm_cb] current_message after removing submitted_message: {current_message}")
+            
+            # Continue without invoking LLM immediately
+            return False  
         
         else: 
             async def process_query():
@@ -188,36 +189,35 @@ async def entrypoint(ctx: JobContext):
     async def _on_message_received(msg: str):
         nonlocal push_to_talk
         nonlocal remote_video_processor
-        nonlocal accumulated_messages
+        nonlocal current_message
         nonlocal submitted_message
 
         if msg == "{COMPLETE}":
-            chat_ctx = assistant.chat_ctx.copy()
+            chat_ctx = assistant.chat_ctx
             log_message(f"[on_message_received] copied chat_ctx: {chat_ctx}")
 
-            for message in accumulated_messages:
-                if isinstance(message.content, str):
-                    chat_ctx.append(role=message.role, text=message.content)
+  
+            if isinstance(current_message.content, str):
+                chat_ctx.append(role=current_message.role, text=current_message.content)
 
-                    # extend existing submitted_message content with the new message content 
-                    if submitted_message and isinstance(submitted_message[0].content, str):
-                        submitted_message[0].content += message.content
-                    else:
-                        submitted_message = [message]
-                    log_message(f"[on_message_received] appended message: {message.content}")
-                    log_message(f"[on_message_received] submitted_message is now {submitted_message}")
-                    log_message(f"[on_message_received] chat_ctx is now {chat_ctx}")
-                elif isinstance(message.content, ChatImage):
-                    chat_ctx.append(role=message.role, images=[message.content])
-                    log_message(f"[on_message_received] appended message: {message.content}")
-                    log_message(f"[on_message_received] submitted_message is now {submitted_message}")
-                    log_message(f"[on_message_received] chat_ctx is now {chat_ctx}")
+                # extend existing submitted_message content with the new message content 
+                if submitted_message and isinstance(submitted_message.content, str):
+                    submitted_message.content += current_message.content
                 else:
-                    log_message(f"[on_message_received] Unsupported message content type: {message}")
+                    submitted_message = current_message
+                log_message(f"[on_message_received] appended message: {current_message.content}")
+                log_message(f"[on_message_received] submitted_message is now {submitted_message}")
+                log_message(f"[on_message_received] chat_ctx is now {chat_ctx}")
+            elif isinstance(current_message.content, ChatImage):
+                chat_ctx.append(role=current_message.role, images=[current_message.content])
+                log_message(f"[on_message_received] appended message: {current_message.content}")
+                log_message(f"[on_message_received] submitted_messages is now {submitted_message}")
+                log_message(f"[on_message_received] chat_ctx is now {chat_ctx}")
+            else:
+                log_message(f"[on_message_received] Unsupported message content type: {current_message}")
             
-            # Reset accumulated messages
-            accumulated_messages = []
-            log_message(f"[on_message_received] accumulated_messages reset to {accumulated_messages}")
+            current_message = ChatMessage(role='user')
+            log_message(f"[on_message_received] current_message reset to {current_message}")
 
             # Generate a response
             stream = assistant.llm.chat(chat_ctx=chat_ctx)
@@ -229,8 +229,10 @@ async def entrypoint(ctx: JobContext):
         if msg == "{REQUIRE_START_OFF}":
             push_to_talk = False
 
-        # why do we copy the chat_ctx here?
-        chat_ctx = assistant.chat_ctx.copy()
+        # we copy chat_ctx here to handle the actual message content being sent to the LLM by the user
+        # _on_message_received is called once with the message request and then once with the {COMPLETE} message to trigger the actual LLM call 
+        # so this copy is our default case where we just append the user's message to the chat_ctx
+        chat_ctx = assistant.chat_ctx
         chat_ctx.append(role="user", text=msg)
         
         if remote_video_processor:
