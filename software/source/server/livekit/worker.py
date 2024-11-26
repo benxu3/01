@@ -10,7 +10,7 @@ from livekit.agents.transcription import STTSegmentsForwarder
 from livekit.agents.llm import ChatContext
 from livekit import rtc
 from livekit.agents.pipeline import VoicePipelineAgent
-from livekit.plugins import deepgram, openai, silero, elevenlabs
+from livekit.plugins import deepgram, openai, silero, elevenlabs, cartesia
 from livekit.agents.llm.chat_context import ChatContext, ChatImage, ChatMessage
 from livekit.agents.llm import LLMStream
 
@@ -110,7 +110,7 @@ async def entrypoint(ctx: JobContext):
     elif tts_provider == 'elevenlabs':
         tts = elevenlabs.TTS()
     elif tts_provider == 'cartesia':
-        pass # import plugin, TODO support this
+        tts = cartesia.TTS()
     else:
         raise ValueError(f"Unsupported TTS provider: {tts_provider}. Please set 01_TTS environment variable to 'openai' or 'elevenlabs'.")
 
