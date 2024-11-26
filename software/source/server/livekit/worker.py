@@ -196,7 +196,13 @@ async def entrypoint(ctx: JobContext):
             chat_ctx = assistant.chat_ctx
             log_message(f"[on_message_received] copied chat_ctx: {chat_ctx}")
 
-  
+            # append image if available
+            if remote_video_processor:
+                video_frame = await remote_video_processor.get_current_frame()
+                if video_frame:
+                    chat_ctx.append(role="user", images=[ChatImage(image=video_frame)]) 
+                    log_message(f"[on_message_received] appended image: {video_frame} to chat_ctx: {chat_ctx}")
+
             if isinstance(current_message.content, str):
                 chat_ctx.append(role=current_message.role, text=current_message.content)
 
@@ -222,23 +228,24 @@ async def entrypoint(ctx: JobContext):
             # Generate a response
             stream = assistant.llm.chat(chat_ctx=chat_ctx)
             await assistant.say(stream)
+            return
         
         if msg == "{REQUIRE_START_ON}":
             push_to_talk = True
+            return
 
         if msg == "{REQUIRE_START_OFF}":
             push_to_talk = False
+            return
 
         # we copy chat_ctx here to handle the actual message content being sent to the LLM by the user
         # _on_message_received is called once with the message request and then once with the {COMPLETE} message to trigger the actual LLM call 
         # so this copy is our default case where we just append the user's message to the chat_ctx
         chat_ctx = assistant.chat_ctx
         chat_ctx.append(role="user", text=msg)
-        
-        if remote_video_processor:
-            video_frame = await remote_video_processor.get_current_frame()
-            if video_frame:
-                chat_ctx.append(role="user", images=[ChatImage(image=video_frame)]) 
+        log_message(f"[on_message_received] appended message: {msg} to chat_ctx: {chat_ctx}")
+
+        return
 
     ############################################################
     # on_message_received callback
