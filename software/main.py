@@ -160,8 +160,7 @@ def run(
 
         if server == "livekit":
 
-            ### LIVEKIT SERVER
-
+            ### LIVEKIT SERVER            
             def run_command(command):
                 subprocess.run(command, shell=True, check=True)
 
@@ -173,7 +172,7 @@ def run(
             livekit_thread = threading.Thread(
                 target=run_command, args=(command,)
             )
-            time.sleep(7)
+
             livekit_thread.start()
             threads.append(livekit_thread)
 
@@ -230,7 +229,6 @@ def run(
     signal.signal(signal.SIGTERM, signal_handler)
 
     try:
-
         # Verify the server is running
         for attempt in range(10):
             try:
@@ -246,9 +244,20 @@ def run(
 
         ### DISPLAY QR CODE
         if qr:
+            token = str(api.AccessToken('devkey', 'secret') \
+                .with_identity("You") \
+                .with_name("You") \
+                .with_grants(api.VideoGrants(
+                    room_join=True,
+                    room="my-room",
+            )).to_jwt())
+
             def display_qr_code():
                 time.sleep(10)
-                content = json.dumps({"livekit_server": url})
+                content = json.dumps({
+                    "livekit_server": url,
+                    "token": token
+                })
                 qr_code = segno.make(content)
                 qr_code.terminal(compact=True)
 
@@ -266,8 +275,8 @@ def run(
             os.environ['01_STT'] = interpreter.stt
 
             token = str(api.AccessToken('devkey', 'secret') \
-                .with_identity("identity") \
-                .with_name("my name") \
+                .with_identity("You") \
+                .with_name("You") \
                 .with_grants(api.VideoGrants(
                     room_join=True,
                     room="my-room",
