@@ -125,6 +125,7 @@ async def entrypoint(ctx: JobContext):
     push_to_talk = True
     current_message: ChatMessage = ChatMessage(role='user')
     submitted_message: ChatMessage = ChatMessage(role='user')
+    video_muted = False
 
     tasks = []
     ############################################################
@@ -169,7 +170,7 @@ async def entrypoint(ctx: JobContext):
         
         else: 
             async def process_query():
-                if remote_video_processor:
+                if remote_video_processor and not video_muted:
                     video_frame = await remote_video_processor.get_current_frame()
                     if video_frame:
                         chat_ctx.append(role="user", images=[ChatImage(image=video_frame)])
@@ -197,7 +198,7 @@ async def entrypoint(ctx: JobContext):
             log_message(f"[on_message_received] copied chat_ctx: {chat_ctx}")
 
             # append image if available
-            if remote_video_processor:
+            if remote_video_processor and not video_muted:
                 video_frame = await remote_video_processor.get_current_frame()
                 if video_frame:
                     chat_ctx.append(role="user", images=[ChatImage(image=video_frame)]) 
@@ -294,6 +295,28 @@ async def entrypoint(ctx: JobContext):
             remote_video_processor = RemoteVideoProcessor(video_stream=remote_video_stream, job_ctx=ctx)
             log_message("remote video processor." + str(remote_video_processor))
             asyncio.create_task(remote_video_processor.process_frames())
+
+    ############################################################
+    # on track muted callback
+    ############################################################
+    @ctx.room.on("track_muted")
+    def on_track_muted(participant: rtc.RemoteParticipant, publication: rtc.TrackPublication):
+        nonlocal video_muted
+        if publication.kind == rtc.TrackKind.KIND_VIDEO:
+            video_muted = True
+            log_message(f"Track muted: {publication.kind}")
+
+
+
+    ############################################################
+    # on track unmuted callback
+    ############################################################
+    @ctx.room.on("track_unmuted")
+    def on_track_unmuted(participant: rtc.RemoteParticipant, publication: rtc.TrackPublication):
+        nonlocal video_muted
+        if publication.kind == rtc.TrackKind.KIND_VIDEO:
+            video_muted = False
+            log_message(f"Track unmuted: {publication.kind}")
 
     ############################################################
     # Start the voice assistant with the LiveKit room
