@@ -246,9 +246,17 @@ def run(
 
         ### DISPLAY QR CODE
         if qr:
+            participant_token = str(api.AccessToken('devkey', 'secret') \
+                .with_identity("Participant") \
+                .with_name("You") \
+                .with_grants(api.VideoGrants(
+                    room_join=True,
+                    room="my-room",
+            )).to_jwt())
+
             def display_qr_code():
                 time.sleep(10)
-                content = json.dumps({"livekit_server": url})
+                content = json.dumps({"livekit_server": url, "token": participant_token})
                 qr_code = segno.make(content)
                 qr_code.terminal(compact=True)
 
