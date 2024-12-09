@@ -1,17 +1,20 @@
 from livekit.rtc import VideoStream
 from livekit.agents import JobContext
 from datetime import datetime
-from livekit.agents.pipeline import VoicePipelineAgent
-
+import os
 
 from livekit.rtc import VideoFrame
 import asyncio
 
 # Define the path to the log file
 LOG_FILE_PATH = 'video_processor.txt'
+DEBUG = os.getenv('DEBUG', 'false').lower() == 'true'
 
 def log_message(message: str):
     """Append a message to the log file with a timestamp."""
+    if not DEBUG:
+        return
+    
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with open(LOG_FILE_PATH, 'a') as log_file:
         log_file.write(f"{timestamp} - {message}\n")
