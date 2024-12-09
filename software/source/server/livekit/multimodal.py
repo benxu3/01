@@ -82,7 +82,6 @@ async def entrypoint(ctx: JobContext):
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
 
     participant = await ctx.wait_for_participant()
-    fnc_ctx = AssistantFnc()
 
     openai_api_key = os.getenv("OPENAI_API_KEY")
     model = openai.realtime.RealtimeModel(
