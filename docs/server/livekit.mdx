@@ -69,6 +69,18 @@ Replace the placeholders with your actual API keys.
 
 ### Starting the Server
 
+**To use the mobile app, run the following command**
+
+```bash
+poetry run 01 --server livekit --qr --expose
+```
+
+To customize the profile, append the --profile flag with the profile name: 
+
+```bash
+poetry run 01 --server livekit --qr --expose --profile fast
+```
+
 To start the Livekit server, run the following command:
 
 ```bash
@@ -85,12 +97,6 @@ To expose over the internet via ngrok
 
 ```bash
 poetry run 01 --server livekit --expose
-```
-
-In order to use the mobile app over the web, use both flags
-
-```bash
-poetry run 01 --server livekit --qr --expose
 ```
 
 <Note>
