@@ -241,17 +241,17 @@ def run(
             time.sleep(1)
         else:
             raise Exception(f"Server at {url} failed to respond after 10 attempts")
-
-        ### DISPLAY QR CODE
-        if qr:
-            participant_token = str(api.AccessToken('devkey', 'secret') \
+        
+        participant_token = str(api.AccessToken('devkey', 'secret') \
                 .with_identity("Participant") \
                 .with_name("You") \
                 .with_grants(api.VideoGrants(
                     room_join=True,
                     room="my-room",
             )).to_jwt())
-
+        
+        ### DISPLAY QR CODE
+        if qr:
             def display_qr_code():
                 time.sleep(10)
                 content = json.dumps({"livekit_server": url, "token": participant_token})
@@ -271,16 +271,8 @@ def run(
             os.environ['01_TTS'] = interpreter.tts
             os.environ['01_STT'] = interpreter.stt
 
-            token = str(api.AccessToken('devkey', 'secret') \
-                .with_identity("You") \
-                .with_name("You") \
-                .with_grants(api.VideoGrants(
-                    room_join=True,
-                    room="my-room",
-            )).to_jwt())
-
             # meet_url = f'http://localhost:3000/custom?liveKitUrl={url.replace("http", "ws")}&token={token}\n\n'
-            meet_url = f'https://meet.livekit.io/custom?liveKitUrl={url.replace("http", "ws")}&token={token}\n\n'
+            meet_url = f'https://meet.livekit.io/custom?liveKitUrl={url.replace("http", "ws")}&token={participant_token}\n\n'
             print("\n")
             print("For debugging, you can join a video call with your assistant. Click the link below, then send a chat message that says {CONTEXT_MODE_OFF}, then begin speaking:")
             print(meet_url)
