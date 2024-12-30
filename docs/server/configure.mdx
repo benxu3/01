@@ -27,7 +27,7 @@ poetry run 01 --profile <profile_name>
 
 `fast.py` uses Cartesia for TTS and Cerebras Llama3.1-8b, which are the fastest providers.
 
-`local.py` uses coqui TTS and runs the --local explorer from Open Interpreter.
+`local.py` requires additional setup to be used with LiveKit. Uses faster-whisper for STT, ollama/codestral for LLM (default), and piper for TTS (default).
 
 ### Custom Profiles
 
@@ -123,11 +123,24 @@ interpreter.local_setup()
 interpreter.tts = "elevenlabs"
 ```
 
-### Local TTS
+### Local TTS and STT with LiveKit
 
-For local TTS, Coqui is used.
+We recommend having Docker installed for the easiest setup. Local TTS and STT relies on the [openedai-speech](https://github.com/matatonic/openedai-speech?tab=readme-ov-file) and [faster-whisper-server](https://github.com/fedirz/faster-whisper-server) repositories respectively. 
 
+#### Local TTS
+1. Clone the [openedai-speech](https://github.com/matatonic/openedai-speech?tab=readme-ov-file) repository
+2. Set `base_url = os.environ.get("OPENAI_BASE_URL", "http://localhost:9000/v1")` to point to localhost at port 9000 in `say.py`
+3. Follow the Docker Image instructions for your system. Default run `docker compose -f docker-compose.min.yml up` in the root. 
+4. Set your profile with local TTS service
 ```python
-# Set your profile with a local TTS service
-interpreter.tts = "coqui"
+interpreter.stt = "local"
+```
+
+#### Local STT
+1. Clone the [faster-whisper-server](https://github.com/fedirz/faster-whisper-server) repository
+2. Follow the Docker Compose Quick Start instructions for your respective system. 
+3. Run `docker run --publish 8001:8000 --volume ~/.cache/huggingface:/root/.cache/huggingface --env WHISPER__MODEL=Systran/faster-whisper-small --detach fedirz/faster-whisper-server:latest-cpu` to publish to port 8001 instead of the default 8000 (since our TTS uses this port).
+4. Set your profile with local STT service
+```python
+interpreter.stt = "local"
 ```
