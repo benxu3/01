@@ -2,7 +2,6 @@ import asyncio
 import numpy as np
 import sys
 import os
-import threading
 from datetime import datetime
 from typing import Literal, Awaitable
 
@@ -22,11 +21,6 @@ from source.server.livekit.logger import log_message
 
 from dotenv import load_dotenv
 load_dotenv()
-
-
-
-_room_lock = threading.Lock()
-_connected_rooms = set()
 
 
 
@@ -449,14 +443,14 @@ def main(livekit_url: str):
 
     # Modify sys.argv to set the path to this file as the first argument
     # and 'dev' as the second argument
-    sys.argv = [str(__file__), 'start']
+    sys.argv = [str(__file__), 'dev']
 
     # Initialize the worker with the entrypoint
     cli.run_app(
         WorkerOptions(
             entrypoint_fnc=entrypoint, 
             api_key="devkey", 
-            api_secret="secret", 
+            api_secret="secret",
             ws_url=livekit_url
         )
 

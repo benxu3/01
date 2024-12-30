@@ -192,7 +192,7 @@ def run(
                         try:
                             response = requests.get(url)
                             if response.status_code == 200:
-                                print("livekit server is running")
+                                continue
                             else:
                                 print("request failed: ", response.status_code)
                                 break
@@ -205,7 +205,6 @@ def run(
                         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                     except ProcessLookupError:
                         pass  # Process group already terminated
-                            
 
             # Start the livekit server
             if debug:
@@ -302,8 +301,8 @@ def run(
                 .with_name("You") \
                 .with_grants(api.VideoGrants(
                     room_join=True,
-                    room=ROOM_NAME,
-            )).to_jwt())
+                    room=ROOM_NAME,))
+                .to_jwt())
         
         ### DISPLAY QR CODE
         if qr:
@@ -360,8 +359,7 @@ def run(
                 spinner.stop()
                 print(f"\nOpening meet interface at: {meet_url}")
                 webbrowser.open(meet_url)
-            
-            print(f"multimodal flag is: {multimodal}")
+                
             try:
                 if multimodal:
                     multimodal_main(url)
