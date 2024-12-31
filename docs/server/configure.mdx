@@ -129,7 +129,7 @@ We recommend having Docker installed for the easiest setup. Local TTS and STT re
 
 #### Local TTS
 1. Clone the [openedai-speech](https://github.com/matatonic/openedai-speech?tab=readme-ov-file) repository
-2. Follow the Docker Image instructions for your system. Default run `docker compose -f docker-compose.min.yml up` in the root. 
+2. Follow the Docker Image instructions for your system. Default run `docker compose -f docker-compose.min.yml up --publish 9001:8000` in the root. 
 3. Set your profile with local TTS service
 ```python
 interpreter.tts = "local"
@@ -138,7 +138,7 @@ interpreter.tts = "local"
 #### Local STT
 1. Clone the [faster-whisper-server](https://github.com/fedirz/faster-whisper-server) repository
 2. Follow the Docker Compose Quick Start instructions for your respective system. 
-3. Run `docker run --publish 8001:8000 --volume ~/.cache/huggingface:/root/.cache/huggingface --env WHISPER__MODEL=Systran/faster-whisper-small --detach fedirz/faster-whisper-server:latest-cpu` to publish to port 8001 instead of the default 8000 (since our TTS uses this port).
+3. Run `docker run --publish 9002:8000 --volume ~/.cache/huggingface:/root/.cache/huggingface --env WHISPER__MODEL=Systran/faster-whisper-small --detach fedirz/faster-whisper-server:latest-cpu` to publish to port 8001 instead of the default 8000 (since our TTS uses this port).
 4. Set your profile with local STT service
 ```python
 interpreter.stt = "local"

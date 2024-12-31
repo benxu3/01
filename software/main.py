@@ -180,16 +180,22 @@ def run(
         threads.append(server_thread)
 
         if server == "livekit":
-
+            
             ### LIVEKIT SERVER            
             def run_command(command):
+                i = 0
                 while True:
-                    process = subprocess.run(command, shell=True, check=True, preexec_fn=os.setsid)
+                    print("i is: ", i)
+                    if i > 0:
+                        process = subprocess.run(command, shell=True, check=True, preexec_fn=os.setsid)
+                    else: 
+                        print("Skipping server start (first iteration)")
                     
                     url = f"http://{server_host}:{server_port}"
                     while True:
                         time.sleep(5)
                         try:
+                            print("Checking server status... with i = ", i)
                             response = requests.get(url)
                             if response.status_code == 200:
                                 continue
@@ -201,10 +207,14 @@ def run(
                             break
                         
                     print("Server failed to start, retrying...")
+
                     try:
-                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+                        os.killpg(os.getpgid(process.pid), signal.SIGTERM)  # This will fail when i=0
                     except ProcessLookupError:
-                        pass  # Process group already terminated
+                        pass
+                    
+                    i += 1
+
 
             # Start the livekit server
             if debug:
