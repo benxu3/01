@@ -129,11 +129,10 @@ We recommend having Docker installed for the easiest setup. Local TTS and STT re
 
 #### Local TTS
 1. Clone the [openedai-speech](https://github.com/matatonic/openedai-speech?tab=readme-ov-file) repository
-2. Set `base_url = os.environ.get("OPENAI_BASE_URL", "http://localhost:9000/v1")` to point to localhost at port 9000 in `say.py`
-3. Follow the Docker Image instructions for your system. Default run `docker compose -f docker-compose.min.yml up` in the root. 
-4. Set your profile with local TTS service
+2. Follow the Docker Image instructions for your system. Default run `docker compose -f docker-compose.min.yml up` in the root. 
+3. Set your profile with local TTS service
 ```python
-interpreter.stt = "local"
+interpreter.tts = "local"
 ```
 
 #### Local STT
