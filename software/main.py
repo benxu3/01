@@ -51,14 +51,14 @@ def cleanup_processes(processes):
 
 @app.command()
 def run(
-    host: str = typer.Option(
+    lk_host: str = typer.Option(
         "0.0.0.0",
-        "--host",
+        "--lk-host",
         help="Specify the server host where the livekit server will deploy. For other devices on your network to connect to it, keep it on default `0.0.0.0`",
     ),
-    port: int = typer.Option(
+    lk_port: int = typer.Option(
         10101,
-        "--port",
+        "--lk-port",
         help="Specify the server port where the livekit server will deploy",
     ),
     domain: str = typer.Option(None, "--domain", help="Pass in a custom ngrok domain to expose the livekit server over the internet"),
@@ -119,15 +119,15 @@ def run(
 
     print("Starting livekit server...")
     if debug: 
-        LK_CMD = f"livekit-server --dev --bind {host} --port {port}"
+        LK_CMD = f"livekit-server --dev --bind {lk_host} --port {lk_port}"
     else:
-        LK_CMD = f"livekit-server --dev --bind {host} --port {port} > /dev/null 2>&1"
+        LK_CMD = f"livekit-server --dev --bind {lk_host} --port {lk_port} > /dev/null 2>&1"
     
     lk_server = subprocess.Popen(LK_CMD, shell=True)
     print("Livekit server started")
     time.sleep(2)
 
-    lk_url = f"http://localhost:10101"
+    lk_url = f"http://{lk_host}:{lk_port}"
     participant_token = str(api.AccessToken('devkey', 'secret') \
                 .with_identity("Participant") \
                 .with_name("You") \
@@ -139,7 +139,7 @@ def run(
     processes = [lk_server, oi_server]
 
     if client == 'mobile':
-        listener =  ngrok.forward(f"{host}:{port}", authtoken_from_env=True, domain=domain)
+        listener =  ngrok.forward(f"{lk_host}:{lk_port}", authtoken_from_env=True, domain=domain)
         lk_url = listener.url()
         print(f"Livekit server forwarded to: {lk_url}")
 
@@ -156,7 +156,7 @@ def run(
         print("Next.js dev server started")
 
         time.sleep(2)
-        meet_url = f'http://localhost:3001/custom?liveKitUrl={lk_url.replace("http", "ws")}&token={participant_token}'
+        meet_url = f'http://localhost:3000/custom?liveKitUrl={lk_url.replace("http", "ws")}&token={participant_token}'
         print(f"\nOpening meet interface at: {meet_url}")
         webbrowser.open(meet_url)
 
