@@ -84,7 +84,7 @@ async def entrypoint(ctx: JobContext):
     base_url = f"http://{interpreter_server_host}:{interpreter_server_port}/"
 
     # For debugging
-    base_url = "http://127.0.0.1:9000/"
+    base_url = "http://127.0.0.1:8000/"
 
     open_interpreter = openai.LLM(
         model="open-interpreter", base_url=base_url, api_key="x"
@@ -93,6 +93,7 @@ async def entrypoint(ctx: JobContext):
     tts_provider = os.getenv('01_TTS', '').lower()
     stt_provider = os.getenv('01_STT', '').lower()
 
+    # todo: remove this 
     tts_provider = "elevenlabs"
     stt_provider = "deepgram"
 
@@ -100,7 +101,7 @@ async def entrypoint(ctx: JobContext):
     if tts_provider == 'openai':
         tts = openai.TTS()
     elif tts_provider == 'local':
-        tts = openai.TTS(base_url="http://localhost:8000/v1")
+        tts = openai.TTS(base_url="http://localhost:9001/v1")
         print("using local tts")
     elif tts_provider == 'elevenlabs':
         tts = elevenlabs.TTS()
@@ -113,7 +114,7 @@ async def entrypoint(ctx: JobContext):
     if stt_provider == 'deepgram':
         stt = deepgram.STT()
     elif stt_provider == 'local':
-        stt = openai.STT(base_url="http://localhost:8001/v1")
+        stt = openai.STT(base_url="http://localhost:9002/v1")
         print("using local stt")
     else:
         raise ValueError(f"Unsupported STT provider: {stt_provider}. Please set 01_STT environment variable to 'deepgram'.")
