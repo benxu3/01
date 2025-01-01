@@ -3,7 +3,7 @@ import json
 import base64
 import traceback
 import io
-import os
+import re
 from PIL import Image as PIL_Image
 
 from openai import OpenAI
@@ -20,15 +20,18 @@ INSTRUCTIONS_PROMPT = """Given the conversation context and the current video fr
 Rate the severity of violation from 0-10, where 10 is most severe.
 
 Instructions to check:
-1. Ensure that the screenshot is NOT YOUTUBE or other video content
+1. Ensure that there is no one in the frame.
 
-Respond in the following JSON format:
-{
-    "violation_detected": boolean,
-    "severity_rating": number,
-    "violation_summary": string,
-    "recommendations": string
-}
+"""
+
+RESPONSE_FORMAT = """
+    Respond in the following JSON format:
+    {
+        "violation_detected": boolean,
+        "severity_rating": number,
+        "violation_summary": string,
+        "recommendations": string
+    }
 """
 
 
@@ -53,7 +56,7 @@ async def handle_instruction_check(
             log_message(f"Violation detected with severity {result['severity_rating']}, triggering assistant response")
             
             # Append violation to chat context
-            violation_text = f"For the given instructions: {INSTRUCTIONS_PROMPT}\n. Instruction violation frame detected: {result['violation_summary']}\nRecommendations: {result['recommendations']}"
+            violation_text = f"Instruction violation frame detected: {result['violation_summary']}\nRecommendations: {result['recommendations']}"
             assistant.chat_ctx.append(
                 role="user",
                 text=violation_text
@@ -75,12 +78,16 @@ async def handle_instruction_check(
 
             # TODO: instead of saying the predetermined response, we'll trigger an assistant response here
             # we can append the current video frame that triggered the violation to the chat context
-            stream = assistant.llm.chat(
-                chat_ctx=assistant.chat_ctx,
-                fnc_ctx=assistant.fnc_ctx,
-            )
+            # NOTE: this currently produces an unexpected connection error:
+            # httpcore.ConnectError: All connection attempts failed
 
-            await assistant.say(stream)
+            # stream = assistant.llm.chat(
+            #     chat_ctx=assistant.chat_ctx,
+            #     fnc_ctx=assistant.fnc_ctx,
+            # )
+
+             # we temporarily default back to saying the predetermined response
+            await assistant.say(violation_text)
         else:
             log_message("No significant violations detected or severity below threshold")
     except Exception as e:
@@ -93,15 +100,11 @@ async def check_instruction_violation(
     chat_ctx: ChatContext,
     video_frame: rtc.VideoFrame,
 ) -> Dict[str, Any]:
-    """Make a call to GPT-4 Vision to check for instruction violations"""
+    """Makes a call to gpt-4o-mini to check for instruction violations"""
     log_message("Creating new context for instruction check...")
     
     try:
-        # pull this from env. 
-        interpreter_server_host = os.getenv('INTERPRETER_SERVER_HOST', 'localhost')
-        interpreter_server_port = os.getenv('INTERPRETER_SERVER_PORT', '8000')
-        base_url = f"http://{interpreter_server_host}:{interpreter_server_port}/"
-        client = OpenAI(base_url)
+        client = OpenAI()
         
         try:
             # Get raw RGBA data
@@ -135,7 +138,7 @@ async def check_instruction_violation(
                     {
                         "role": "user", 
                         "content": [
-                            {"type": "text", "text": INSTRUCTIONS_PROMPT},
+                            {"type": "text", "text": INSTRUCTIONS_PROMPT + RESPONSE_FORMAT},
                             {
                                 "type": "image_url",
                                 "image_url": {
@@ -154,7 +157,12 @@ async def check_instruction_violation(
         
         try:
             # Parse the response content
-            result = json.loads(response.choices[0].message.content)
+            # Clean up the LLM response if it includes ```json ... ```
+            content = response.choices[0].message.content.strip()
+            content = re.sub(r'^```(?:json)?', '', content)  # remove leading triple backticks and optional 'json'
+            content = re.sub(r'```$', '', content).strip()   # remove trailing triple backticks
+            result = json.loads(content)
+            
             log_message(f"Successfully parsed LLM response: {json.dumps(result, indent=2)}")
             return result
         except Exception as e:
