@@ -48,60 +48,16 @@ def cleanup_processes(processes):
             process.terminate()
             process.wait()  # wait for process to terminate
 
-
-@app.command()
-def run(
-    host: str = typer.Option(
-        "0.0.0.0",
-        "--host",
-        help="Specify the server host where the livekit server will deploy. For other devices on your network to connect to it, keep it on default `0.0.0.0`",
-    ),
-    port: int = typer.Option(
-        10101,
-        "--port",
-        help="Specify the server port where the livekit server will deploy",
-    ),
-    domain: str = typer.Option(None, "--domain", help="Pass in a custom ngrok domain to expose the livekit server over the internet"),
-    client: str = typer.Option(None, "--client", help="Run client of a particular type. Accepts `meet` or `mobile`, defaults to `meet`"),
-    profiles: bool = typer.Option(
-        False,
-        "--profiles",
-        help="Opens the folder where profiles are contained",
-    ),
-    profile: str = typer.Option(
-        "default.py",
-        "--profile",
-        help="Specify the path to the profile, or the name of the file if it's in the `profiles` directory (run `--profiles` to open the profiles directory)",
-    ),
-    debug: bool = typer.Option(
-        False,
-        "--debug",
-        help="Print latency measurements and save microphone recordings locally for manual playback",
-    ),
-    multimodal: bool = typer.Option(
-        False,
-        "--multimodal",
-        help="Run the multimodal agent",
-    )
-):  
+if __name__ == "__main__":
     # preprocess ports
     ports = [10101, 8000, 3000]
     for port in ports:
         pre_clean_process(port)
 
-    if profiles:
-        if platform.system() == "Windows":
-            subprocess.Popen(['explorer', profiles_dir])
-        elif platform.system() == "Darwin":
-            subprocess.Popen(['open', profiles_dir])
-        elif platform.system() == "Linux":
-            subprocess.Popen(['xdg-open', profiles_dir])
-        else:
-            subprocess.Popen(['open', profiles_dir])
-        exit(0)
 
     profiles_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "source", "server", "profiles")
 
+    profile = "default.py"  
     if profile:
         if not os.path.isfile(profile):
             profile = os.path.join(profiles_dir, profile)
@@ -118,6 +74,9 @@ def run(
     
 
     print("Starting livekit server...")
+    debug = False
+    host = '0.0.0.0'
+    port = 10101
     if debug: 
         LK_CMD = f"livekit-server --dev --bind {host} --port {port}"
     else:
@@ -125,7 +84,6 @@ def run(
     
     lk_server = subprocess.Popen(LK_CMD, shell=True)
     print("Livekit server started")
-    time.sleep(2)
 
     lk_url = f"http://localhost:10101"
     participant_token = str(api.AccessToken('devkey', 'secret') \
@@ -138,8 +96,9 @@ def run(
 
     processes = [lk_server, oi_server]
 
+    client = 'meet'    
     if client == 'mobile':
-        listener =  ngrok.forward(f"{host}:{port}", authtoken_from_env=True, domain=domain)
+        listener =  ngrok.forward(f"{host}:{port}", authtoken_from_env=True)
         lk_url = listener.url()
         print(f"Livekit server forwarded to: {lk_url}")
 
@@ -156,12 +115,13 @@ def run(
         print("Next.js dev server started")
 
         time.sleep(2)
-        meet_url = f'http://localhost:3001/custom?liveKitUrl={lk_url.replace("http", "ws")}&token={participant_token}'
+        meet_url = f'http://localhost:3000/custom?liveKitUrl={lk_url.replace("http", "ws")}&token={participant_token}'
         print(f"\nOpening meet interface at: {meet_url}")
         webbrowser.open(meet_url)
 
         processes.append(next_server)
-    
+
+    multimodal = False
     try:
         print("Starting worker...")
         if multimodal:
